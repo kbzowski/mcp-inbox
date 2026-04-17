@@ -4,6 +4,7 @@ import { loadConfig, type AppConfig } from './config/env.js';
 import { openCache } from './cache/db.js';
 import { IdleManager } from './cache/idle.js';
 import { ImapClient } from './imap/client.js';
+import { SmtpClient } from './smtp/client.js';
 import { createMcpServer } from './server.js';
 import type { ToolContext } from './tools/define-tool.js';
 import { configureLogger, rootLogger } from './utils/logger.js';
@@ -32,10 +33,12 @@ try {
 
   const cache = openCache(join(config.cache.dir, 'cache.db'));
   const imapClient = new ImapClient(config.imap);
+  const smtpClient = new SmtpClient(config.smtp);
 
   const ctx: ToolContext = {
     db: cache.db,
     imap: imapClient,
+    smtp: smtpClient,
     cacheConfig: config.cache,
     defaults: {
       fromAddress: config.imap.user,
@@ -88,6 +91,7 @@ try {
         msg: err instanceof Error ? err.message : String(err),
       });
     }
+    smtpClient.close();
     cache.close();
     process.exit(0);
   };

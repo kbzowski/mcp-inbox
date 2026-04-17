@@ -11,6 +11,10 @@ import { listDraftsTool } from './drafts/list-drafts.js';
 import { getDraftTool } from './drafts/get-draft.js';
 import { createDraftTool } from './drafts/create-draft.js';
 import { updateDraftTool } from './drafts/update-draft.js';
+import { sendEmailTool } from './send/send-email.js';
+import { sendDraftTool } from './send/send-draft.js';
+import { replyTool } from './send/reply.js';
+import { forwardTool } from './send/forward.js';
 
 /**
  * Every tool that exists. Adding a tool means importing it here and
@@ -34,6 +38,11 @@ export const tools: readonly ToolDefinition[] = [
   // Drafts (compose)
   createDraftTool,
   updateDraftTool,
+  // Send (SMTP)
+  sendEmailTool,
+  sendDraftTool,
+  replyTool,
+  forwardTool,
 ];
 
 export function findTool(name: string): ToolDefinition | undefined {

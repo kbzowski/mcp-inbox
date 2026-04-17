@@ -7,6 +7,7 @@ describe('tool registry', () => {
     expect(names).toEqual([
       'imap_create_draft',
       'imap_delete_email',
+      'imap_forward',
       'imap_get_draft',
       'imap_get_email',
       'imap_list_drafts',
@@ -15,7 +16,10 @@ describe('tool registry', () => {
       'imap_mark_read',
       'imap_mark_unread',
       'imap_move_to_folder',
+      'imap_reply',
       'imap_search_emails',
+      'imap_send_draft',
+      'imap_send_email',
       'imap_update_draft',
     ]);
   });

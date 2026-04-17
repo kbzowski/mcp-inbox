@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import type { AppConfig } from '../config/env.js';
 import type { CacheDb } from '../cache/db.js';
 import type { ImapClient } from '../imap/client.js';
+import type { SmtpClient } from '../smtp/client.js';
 
 /**
  * Runtime context passed to every tool handler. Tools receive the live
@@ -12,6 +13,7 @@ import type { ImapClient } from '../imap/client.js';
 export interface ToolContext {
   db: CacheDb;
   imap: ImapClient;
+  smtp: SmtpClient;
   cacheConfig: AppConfig['cache'];
   /** Default sender + smtp config for tools that compose messages. */
   defaults: {
