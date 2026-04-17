@@ -33,28 +33,17 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  # Integration job - activated in Phase 3 when real tests + GreenMail bootstrap land.
-  # Intentionally left commented so CI stays green during scaffolding phases.
-  #
-  # integration:
-  #   runs-on: ubuntu-latest
-  #   needs: check
-  #   services:
-  #     greenmail:
-  #       image: greenmail/standalone:2.1.0
-  #       ports:
-  #         - 3143:3143 # IMAP
-  #         - 3025:3025 # SMTP
-  #       env:
-  #         GREENMAIL_OPTS: '-Dgreenmail.setup.test.all -Dgreenmail.auth.disabled -Dgreenmail.users=test:test@localhost'
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-node@v4
-  #       with:
-  #         node-version: '24.x'
-  #         cache: 'npm'
-  #     - run: npm ci
-  #     - run: npm run test:integration
-  #       env:
-  #         GREENMAIL_IMAP_PORT: 3143
-  #         GREENMAIL_SMTP_PORT: 3025
+  integration:
+    runs-on: ubuntu-latest
+    needs: check
+    # testcontainers spawns the GreenMail container itself, so we
+    # don't need a `services:` block - Docker is pre-installed on
+    # ubuntu-latest runners and testcontainers talks to it directly.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run test:integration
