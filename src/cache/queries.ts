@@ -153,11 +153,7 @@ export function countEmailsInFolder(
  * disconnected).
  */
 export function listCachedUidsForFolder(db: CacheDb, folder: string): number[] {
-  const rows = db
-    .select({ uid: emails.uid })
-    .from(emails)
-    .where(eq(emails.folder, folder))
-    .all();
+  const rows = db.select({ uid: emails.uid }).from(emails).where(eq(emails.folder, folder)).all();
   return rows.map((r) => r.uid);
 }
 
