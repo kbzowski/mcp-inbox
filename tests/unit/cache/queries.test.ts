@@ -15,10 +15,6 @@ import {
   deleteEmailsByUids,
   getEmailBody,
   setEmailBody,
-  upsertAttachment,
-  getAttachment,
-  linkEmailAttachment,
-  listAttachmentsForEmail,
 } from '../../../src/cache/queries';
 
 const MIGRATIONS = resolve(process.cwd(), 'src/cache/migrations');
@@ -258,61 +254,6 @@ describe('cache queries', () => {
     it('deleteEmailsByUids is a no-op on empty list', () => {
       deleteEmailsByUids(cache.db, 'INBOX', []);
       expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(3);
-    });
-  });
-
-  // ─── Attachments ───────────────────────────────────────────────────────
-
-  describe('attachments', () => {
-    beforeEach(() => {
-      upsertEmail(cache.db, buildEmail({ uid: 1, hasAttachments: true }));
-    });
-
-    it('upsertAttachment is no-op on existing sha256 (content-addressed)', () => {
-      upsertAttachment(cache.db, {
-        sha256: 'abc123',
-        filename: 'invoice.pdf',
-        contentType: 'application/pdf',
-        sizeBytes: 1024,
-        filePath: '/tmp/abc123',
-        firstSeenAt: 1_000,
-      });
-      upsertAttachment(cache.db, {
-        sha256: 'abc123',
-        // Different metadata, but same bytes - should not overwrite.
-        filename: 'invoice-copy.pdf',
-        contentType: 'application/octet-stream',
-        sizeBytes: 1024,
-        filePath: '/tmp/other-path',
-        firstSeenAt: 9_999,
-      });
-
-      const row = getAttachment(cache.db, 'abc123');
-      expect(row?.filename).toBe('invoice.pdf');
-      expect(row?.filePath).toBe('/tmp/abc123');
-      expect(row?.firstSeenAt).toBe(1_000);
-    });
-
-    it('linkEmailAttachment + listAttachmentsForEmail join correctly', () => {
-      upsertAttachment(cache.db, {
-        sha256: 'abc123',
-        filename: 'invoice.pdf',
-        contentType: 'application/pdf',
-        sizeBytes: 1024,
-        filePath: '/tmp/abc123',
-        firstSeenAt: 1_000,
-      });
-      linkEmailAttachment(cache.db, 'INBOX', 1, '1.2', 'abc123');
-
-      const list = listAttachmentsForEmail(cache.db, 'INBOX', 1);
-      expect(list).toHaveLength(1);
-      expect(list[0]).toMatchObject({ sha256: 'abc123', filename: 'invoice.pdf' });
-    });
-
-    it('FK prevents linking to unknown sha256', () => {
-      expect(() => linkEmailAttachment(cache.db, 'INBOX', 1, '1.2', 'no-such-attachment')).toThrow(
-        /FOREIGN KEY|foreign key/i,
-      );
     });
   });
 });

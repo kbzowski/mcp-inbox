@@ -3,14 +3,10 @@ import type { CacheDb } from './db';
 import {
   folders,
   emails,
-  attachments,
-  emailAttachments,
   type Folder,
   type FolderInsert,
   type Email,
   type EmailInsert,
-  type Attachment,
-  type AttachmentInsert,
 } from './schema';
 
 // ─── Folders ─────────────────────────────────────────────────────────────
@@ -209,53 +205,4 @@ export function setEmailBody(
     })
     .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))
     .run();
-}
-
-// ─── Attachments ─────────────────────────────────────────────────────────
-
-/**
- * Register a new attachment blob in the content-addressed store.
- * No-op on conflict - the same SHA-256 is immutable by definition.
- */
-export function upsertAttachment(db: CacheDb, row: AttachmentInsert): void {
-  db.insert(attachments).values(row).onConflictDoNothing({ target: attachments.sha256 }).run();
-}
-
-export function getAttachment(db: CacheDb, sha256: string): Attachment | undefined {
-  return db.select().from(attachments).where(eq(attachments.sha256, sha256)).get();
-}
-
-/**
- * Link a message's MIME part to its content-addressed attachment row.
- */
-export function linkEmailAttachment(
-  db: CacheDb,
-  folder: string,
-  uid: number,
-  partId: string,
-  sha256: string,
-): void {
-  db.insert(emailAttachments)
-    .values({ folder, uid, partId, sha256 })
-    .onConflictDoUpdate({
-      target: [emailAttachments.folder, emailAttachments.uid, emailAttachments.partId],
-      set: { sha256 },
-    })
-    .run();
-}
-
-export function listAttachmentsForEmail(db: CacheDb, folder: string, uid: number): Attachment[] {
-  return db
-    .select({
-      sha256: attachments.sha256,
-      filename: attachments.filename,
-      contentType: attachments.contentType,
-      sizeBytes: attachments.sizeBytes,
-      filePath: attachments.filePath,
-      firstSeenAt: attachments.firstSeenAt,
-    })
-    .from(emailAttachments)
-    .innerJoin(attachments, eq(emailAttachments.sha256, attachments.sha256))
-    .where(and(eq(emailAttachments.folder, folder), eq(emailAttachments.uid, uid)))
-    .all();
 }

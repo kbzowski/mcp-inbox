@@ -2,7 +2,9 @@
 
 > MCP server that gives any MCP-capable agent read/write access to your IMAP inbox, with a local SQLite cache for fast responses and IMAP IDLE for real-time updates.
 
-Works with any IMAP/SMTP provider: Gmail, Outlook, Fastmail, iCloud, Proton Mail (via Bridge), Dovecot, hosted Exchange, self-hosted mail servers. Tools for listing and searching mail, composing and sending, managing drafts, handling attachments. Cache stays in sync with the server via CONDSTORE + IDLE so most reads serve from local SQLite without a network round-trip.
+Works with any IMAP/SMTP provider: Gmail, Outlook, Fastmail, iCloud, Proton Mail (via Bridge), Dovecot, hosted Exchange, self-hosted mail servers. Tools for listing and searching mail, composing and sending, managing drafts, inspecting attachment metadata. Cache stays in sync with the server via CONDSTORE + IDLE so most reads serve from local SQLite without a network round-trip.
+
+**On attachments:** mcp-inbox deliberately does not download attachment bytes. `imap_get_email` surfaces filename / content type / size so the agent can describe what's attached, but if the user wants the file, they open it in their mail client. The MCP server stays out of the business of caching potentially sensitive content on disk.
 
 **Status:** 0.1.0, early. See `CLAUDE.md` for architecture notes.
 
@@ -44,7 +46,7 @@ claude mcp add mcp-inbox \
   --env IMAP_USER=you@example.com \
   --env IMAP_PASSWORD=your-app-password \
   --env IMAP_HOST=imap.gmail.com \
-  -- npx -y mcp-inbox
+  -- npx -y @kbzowski/mcp-inbox
 ```
 
 Add `-s user` (user scope) to make the server available in every project instead of just the current directory. List and verify with `claude mcp list`. Remove with `claude mcp remove mcp-inbox`.
@@ -65,7 +67,7 @@ Edit (create the file if it doesn't exist) and merge this into the top-level obj
   "mcpServers": {
     "mcp-inbox": {
       "command": "npx",
-      "args": ["-y", "mcp-inbox"],
+      "args": ["-y", "@kbzowski/mcp-inbox"],
       "env": {
         "IMAP_USER": "you@example.com",
         "IMAP_PASSWORD": "your-app-password",
@@ -82,7 +84,7 @@ Restart Claude Desktop after saving. The server appears in the "Search and tools
 
 ```json
 "command": "cmd",
-"args": ["/c", "npx", "-y", "mcp-inbox"],
+"args": ["/c", "npx", "-y", "@kbzowski/mcp-inbox"],
 ```
 
 ### Codex CLI (OpenAI)
@@ -92,7 +94,7 @@ Config lives at `~/.codex/config.toml`:
 ```toml
 [mcp_servers.mcp-inbox]
 command = "npx"
-args = ["-y", "mcp-inbox"]
+args = ["-y", "@kbzowski/mcp-inbox"]
 
 [mcp_servers.mcp-inbox.env]
 IMAP_USER = "you@example.com"
@@ -100,14 +102,14 @@ IMAP_PASSWORD = "your-app-password"
 IMAP_HOST = "imap.gmail.com"
 ```
 
-Verify with `codex mcp list`. If you're on Windows and Codex can't find `npx`, wrap it: `command = "cmd"`, `args = ["/c", "npx", "-y", "mcp-inbox"]`.
+Verify with `codex mcp list`. If you're on Windows and Codex can't find `npx`, wrap it: `command = "cmd"`, `args = ["/c", "npx", "-y", "@kbzowski/mcp-inbox"]`.
 
 ### Cursor
 
 **Option A - Settings UI:** Settings → MCP → Add new MCP server. Fill in:
 - Name: `mcp-inbox`
 - Type: `command`
-- Command: `npx -y mcp-inbox`
+- Command: `npx -y @kbzowski/mcp-inbox`
 - Env: add `IMAP_USER`, `IMAP_PASSWORD`, `IMAP_HOST` one per line
 
 **Option B - edit `~/.cursor/mcp.json`:**
@@ -117,7 +119,7 @@ Verify with `codex mcp list`. If you're on Windows and Codex can't find `npx`, w
   "mcpServers": {
     "mcp-inbox": {
       "command": "npx",
-      "args": ["-y", "mcp-inbox"],
+      "args": ["-y", "@kbzowski/mcp-inbox"],
       "env": {
         "IMAP_USER": "you@example.com",
         "IMAP_PASSWORD": "your-app-password",
@@ -140,7 +142,7 @@ VS Code added first-party MCP support in 2025. Enable it at the workspace level 
     "mcp-inbox": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "mcp-inbox"],
+      "args": ["-y", "@kbzowski/mcp-inbox"],
       "env": {
         "IMAP_USER": "you@example.com",
         "IMAP_PASSWORD": "your-app-password",
@@ -162,7 +164,7 @@ Cline reads its MCP config from `cline_mcp_settings.json`. Open it from the Clin
   "mcpServers": {
     "mcp-inbox": {
       "command": "npx",
-      "args": ["-y", "mcp-inbox"],
+      "args": ["-y", "@kbzowski/mcp-inbox"],
       "env": {
         "IMAP_USER": "you@example.com",
         "IMAP_PASSWORD": "your-app-password",
@@ -185,7 +187,7 @@ mcpServers:
     command: npx
     args:
       - "-y"
-      - mcp-inbox
+      - "@kbzowski/mcp-inbox"
     env:
       IMAP_USER: you@example.com
       IMAP_PASSWORD: your-app-password
@@ -201,7 +203,7 @@ Zed's editor settings (`Cmd/Ctrl+,`) - add a `context_servers` entry:
   "context_servers": {
     "mcp-inbox": {
       "command": "npx",
-      "args": ["-y", "mcp-inbox"],
+      "args": ["-y", "@kbzowski/mcp-inbox"],
       "env": {
         "IMAP_USER": "you@example.com",
         "IMAP_PASSWORD": "your-app-password",
@@ -221,7 +223,7 @@ extensions:
   mcp-inbox:
     type: stdio
     cmd: npx
-    args: ["-y", "mcp-inbox"]
+    args: ["-y", "@kbzowski/mcp-inbox"]
     envs:
       IMAP_USER: you@example.com
       IMAP_PASSWORD: your-app-password
@@ -237,10 +239,10 @@ The pattern every MCP client shares:
 |---|---|
 | Transport | stdio |
 | Command | `npx` |
-| Args | `["-y", "mcp-inbox"]` |
+| Args | `["-y", "@kbzowski/mcp-inbox"]` |
 | Env | `IMAP_USER`, `IMAP_PASSWORD`, `IMAP_HOST` (minimum) |
 
-If the client expects a bundled executable instead of `npx`, install globally (`npm i -g mcp-inbox`) and point it at `mcp-inbox` directly.
+If the client expects a bundled executable instead of `npx`, install globally (`npm i -g @kbzowski/mcp-inbox`) and point it at `mcp-inbox` directly.
 
 ---
 
@@ -309,13 +311,13 @@ On Windows, some older clients don't resolve `.cmd` shims. Wrap the command:
 
 ```json
 "command": "cmd",
-"args": ["/c", "npx", "-y", "mcp-inbox"]
+"args": ["/c", "npx", "-y", "@kbzowski/mcp-inbox"]
 ```
 
 Or install globally and use the binary directly:
 
 ```bash
-npm install -g mcp-inbox
+npm install -g @kbzowski/mcp-inbox
 # then set command: "mcp-inbox"  (no args)
 ```
 
@@ -325,14 +327,14 @@ If your password contains `$`, `` ` ``, `!`, or a backslash, put it in an env fi
 
 ### First-run takes a while
 
-The first `npx -y mcp-inbox` invocation downloads the package. Subsequent runs are cached. If it looks hung on first boot, check your network.
+The first `npx -y @kbzowski/mcp-inbox` invocation downloads the package. Subsequent runs are cached. If it looks hung on first boot, check your network.
 
 ### Verify the connection manually
 
 From any shell, set the env vars and run:
 
 ```bash
-IMAP_USER=you@example.com IMAP_PASSWORD=... IMAP_HOST=imap.gmail.com npx -y mcp-inbox
+IMAP_USER=you@example.com IMAP_PASSWORD=... IMAP_HOST=imap.gmail.com npx -y @kbzowski/mcp-inbox
 ```
 
 On success you'll see JSON log lines on stderr: `booting mcp-inbox` and `mcp-inbox ready`. The server then idles on stdin (waiting for MCP JSON-RPC). Hit `Ctrl+C` to stop.
@@ -351,10 +353,9 @@ All tools are prefixed `imap_` so they don't collide with other email MCPs. Ever
 
 ### Reading
 
-- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, attachment metadata. Body fetched lazily on first call, cached after.
+- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, and attachment metadata (filename, content type, size). Attachment bytes are never downloaded.
 - **`imap_list_drafts`** `(folder?, limit?, offset?)` - same as list_emails but auto-resolves the Drafts folder via SPECIAL-USE.
 - **`imap_get_draft`** `(uid, folder?)` - full draft content by UID.
-- **`imap_get_attachment`** `(folder, uid, filename? | part_id?, return_mode?)` - download an attachment. `return_mode` is `file_path` (default, content-addressed local cache), `base64` (inline, ≤5 MB by default), or `metadata_only` (no download).
 
 ### Flagging / filing
 
@@ -386,7 +387,6 @@ Every tool carries MCP annotations so clients can gate destructive actions:
 | move_to_folder / delete_email | | ✓ | |
 | create_draft / update_draft | | | |
 | send_email / send_draft / reply / forward | | ✓ | |
-| get_attachment | | | ✓ |
 
 ---
 

@@ -77,46 +77,8 @@ export const emails = sqliteTable(
   ],
 );
 
-/**
- * Content-addressed attachment store. One row per unique attachment,
- * deduplicated by SHA-256 of the raw bytes. The same PDF forwarded
- * through a dozen messages lives on disk once.
- */
-export const attachments = sqliteTable('attachments', {
-  /** SHA-256 of attachment bytes, lowercase hex, no prefix. */
-  sha256: text('sha256').primaryKey(),
-  filename: text('filename').notNull(),
-  contentType: text('content_type'),
-  sizeBytes: integer('size_bytes').notNull(),
-  /** Absolute path on the local filesystem where the bytes live. */
-  filePath: text('file_path').notNull(),
-  /** Epoch ms - used for LRU eviction when cache exceeds maxAttachmentsMB. */
-  firstSeenAt: integer('first_seen_at').notNull(),
-});
-
-/**
- * Join table linking messages to their attachment parts. Same attachment
- * referenced by multiple messages = multiple rows here, single row in
- * `attachments`. MIME part ID (e.g. "1.2") disambiguates multiple
- * attachments within one message.
- */
-export const emailAttachments = sqliteTable(
-  'email_attachments',
-  {
-    folder: text('folder').notNull(),
-    uid: integer('uid').notNull(),
-    partId: text('part_id').notNull(),
-    sha256: text('sha256')
-      .notNull()
-      .references(() => attachments.sha256),
-  },
-  (t) => [primaryKey({ columns: [t.folder, t.uid, t.partId] })],
-);
-
 // Inferred types - consumed by queries.ts and downstream tool handlers.
 export type Folder = typeof folders.$inferSelect;
 export type FolderInsert = typeof folders.$inferInsert;
 export type Email = typeof emails.$inferSelect;
 export type EmailInsert = typeof emails.$inferInsert;
-export type Attachment = typeof attachments.$inferSelect;
-export type AttachmentInsert = typeof attachments.$inferInsert;

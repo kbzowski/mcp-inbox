@@ -36,7 +36,6 @@ const EnvSchema = z
     // Cache
     IMAP_CACHE_ENABLED: BooleanString.default(true),
     IMAP_CACHE_DIR: z.string().min(1).optional(),
-    IMAP_CACHE_MAX_ATTACHMENTS_MB: z.coerce.number().int().positive().default(500),
     IMAP_CACHE_BODY_INLINE: BooleanString.default(false),
     IMAP_CACHE_DEFAULT_STALENESS_SEC: z.coerce.number().int().min(0).default(60),
     IMAP_CACHE_RETAIN_DAYS: z.coerce.number().int().min(0).default(365),
@@ -68,7 +67,6 @@ const EnvSchema = z
     cache: {
       enabled: raw.IMAP_CACHE_ENABLED,
       dir: raw.IMAP_CACHE_DIR ?? defaultCacheDir(),
-      maxAttachmentsMB: raw.IMAP_CACHE_MAX_ATTACHMENTS_MB,
       eagerBodyCache: raw.IMAP_CACHE_BODY_INLINE,
       defaultStalenessSec: raw.IMAP_CACHE_DEFAULT_STALENESS_SEC,
       retainDays: raw.IMAP_CACHE_RETAIN_DAYS,

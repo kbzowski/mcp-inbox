@@ -4,7 +4,7 @@ Guidance for Claude Code when working on this repository.
 
 ## Project
 
-MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to npm as `mcp-inbox`; consumers run it via `npx -y mcp-inbox` over stdio.
+MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to npm as `@kbzowski/mcp-inbox`; consumers run it via `npx -y @kbzowski/mcp-inbox` over stdio.
 
 ## Runtime & tooling
 
@@ -24,7 +24,7 @@ src/
 ├── tools/             # One file per tool; self-registering
 ├── imap/              # ImapFlow client, folder discovery, MIME builder
 ├── smtp/              # Nodemailer transporter
-├── cache/             # Drizzle schema, sync engine, IDLE listener, attachments
+├── cache/             # Drizzle schema, sync engine, IDLE listener
 ├── errors/            # Error hierarchy + raw-error mapper
 ├── formatters/        # markdown + json response formatters
 ├── utils/             # logger, assertions

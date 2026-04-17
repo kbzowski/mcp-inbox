@@ -18,7 +18,7 @@ const Input = z.object({
 export const getEmailTool = defineTool({
   name: 'imap_get_email',
   description:
-    'Fetch the full content of a single email: headers, plain-text body, HTML body, and attachment metadata. Envelope comes from the cache when fresh; the body is fetched lazily on first call and cached for subsequent ones. Use imap_list_emails or imap_search_emails to discover UIDs first.',
+    'Fetch the full content of a single email: headers, plain-text body, HTML body, and attachment metadata (filename, content type, size). Attachment bytes are NOT downloaded or stored locally - the user can open them in their mail client. Use imap_list_emails or imap_search_emails to discover UIDs first.',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -39,6 +39,7 @@ export const getEmailTool = defineTool({
       ...projectEmailSummary(envelope),
       body_text: body.bodyText,
       body_html: body.bodyHtml,
+      attachments: body.attachments,
     };
 
     const text =
@@ -63,6 +64,7 @@ function formatEmailDetail(e: {
   has_attachments: boolean;
   body_text: string | null;
   body_html: string | null;
+  attachments: { filename: string | null; content_type: string; size_bytes: number }[];
 }): string {
   const lines: string[] = [];
   lines.push(`**Subject:** ${e.subject ?? '(no subject)'}`);
@@ -71,7 +73,14 @@ function formatEmailDetail(e: {
   if (e.cc && e.cc.length > 0) lines.push(`**Cc:** ${e.cc.join(', ')}`);
   if (e.date) lines.push(`**Date:** ${e.date}`);
   lines.push(`**Flags:** ${e.flags.length > 0 ? e.flags.join(', ') : '(none)'}`);
-  if (e.has_attachments) lines.push('**Attachments:** yes (use imap_get_attachment to download)');
+  if (e.attachments.length > 0) {
+    lines.push(`**Attachments (${String(e.attachments.length)}):**`);
+    for (const a of e.attachments) {
+      lines.push(
+        `  - ${a.filename ?? '(unnamed)'} (${a.content_type}, ${String(a.size_bytes)} bytes)`,
+      );
+    }
+  }
   lines.push('', '---', '');
   if (e.body_text && e.body_text.trim().length > 0) {
     lines.push(e.body_text.trim());

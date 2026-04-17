@@ -81,20 +81,36 @@ export async function resolveSpecialFolder(
 }
 
 /**
+ * Metadata view of an attachment part. We deliberately do NOT surface
+ * the bytes or a download path - the goal is to let the agent *describe*
+ * attachments, not to cache sensitive content outside the user's mail
+ * client. If the user wants the file, they open their mail client.
+ */
+export interface AttachmentInfo {
+  filename: string | null;
+  content_type: string;
+  size_bytes: number;
+}
+
+/**
  * Ensure a single message's body is cached, fetching it lazily from the
  * server on first access. Stores both plain-text and HTML parts when the
  * message has them. Idempotent - calling twice does a single fetch.
+ *
+ * Also returns attachment metadata (filename + content-type + size) so
+ * tools can describe what's attached without downloading bytes. The
+ * metadata itself is re-derived on each call since it's small and the
+ * canonical source is the live message.
  */
 export async function ensureBodyCached(
   ctx: ToolContext,
   folder: string,
   uid: number,
-): Promise<{ bodyText: string | null; bodyHtml: string | null }> {
-  const cached = getEmailBody(ctx.db, folder, uid);
-  if (cached && cached.bodyCachedAt !== null) {
-    return { bodyText: cached.bodyText, bodyHtml: cached.bodyHtml };
-  }
-
+): Promise<{
+  bodyText: string | null;
+  bodyHtml: string | null;
+  attachments: AttachmentInfo[];
+}> {
   const imap = await ctx.imap.connection();
   const lock = await imap.getMailboxLock(folder);
   try {
@@ -108,8 +124,19 @@ export async function ensureBodyCached(
     const parsed = await simpleParser(msg.source);
     const bodyText = parsed.text ?? null;
     const bodyHtml = typeof parsed.html === 'string' ? parsed.html : null;
-    setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml }, ctx.now());
-    return { bodyText, bodyHtml };
+
+    const cached = getEmailBody(ctx.db, folder, uid);
+    if (cached?.bodyCachedAt == null) {
+      setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml }, ctx.now());
+    }
+
+    const attachments: AttachmentInfo[] = (parsed.attachments ?? []).map((a) => ({
+      filename: a.filename ?? null,
+      content_type: a.contentType ?? 'application/octet-stream',
+      size_bytes: typeof a.size === 'number' ? a.size : 0,
+    }));
+
+    return { bodyText, bodyHtml, attachments };
   } catch (err) {
     if (err instanceof ImapError) throw err;
     throw mapImapError(err);
