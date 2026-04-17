@@ -23,11 +23,12 @@
     "skipLibCheck": true,
 
     // Alias: import from '@/cache/queries' resolves to src/cache/queries.
-    // Picked up by tsc (for types), vitest (via vite's resolver), esbuild
-    // (reads tsconfig paths natively), and tsx (handles bundler mode).
-    "baseUrl": ".",
+    // TS 6+ resolves paths relative to the tsconfig file itself, so
+    // baseUrl is no longer needed. Picked up by tsc (for types), vitest
+    // (via vite's resolver), esbuild (reads tsconfig paths natively),
+    // and tsx (handles bundler mode).
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     "outDir": "dist",
