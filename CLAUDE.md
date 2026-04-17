@@ -8,7 +8,7 @@ MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to
 
 ## Runtime & tooling
 
-- **Node.js 24 LTS** — `engines.node: ">=24.0.0"`. Uses `node:sqlite` built-in; never add `better-sqlite3` or `sqlite3`.
+- **Node.js 24 LTS** — `engines.node: ">=24.0.0"`. SQLite via `better-sqlite3` (prebuilt binaries, no build toolchain required). Previously planned `node:sqlite` but Drizzle ORM does not yet ship a driver for it (drizzle-team/drizzle-orm#2648).
 - **TypeScript strict** with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Do not disable.
 - **ESM only** (`"type": "module"`). Use `.js` import extensions in source (TS resolves them at compile time).
 - **Zod v4** is the single source of truth for all external inputs — env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.

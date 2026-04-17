@@ -21,10 +21,10 @@ await build({
   banner: {
     js: '#!/usr/bin/env node',
   },
-  // Node built-ins are resolved by Node itself; ESM imports of bare names
-  // resolve against node_modules in the consumer's install so we bundle them.
-  // node:sqlite is a Node built-in and must stay external.
-  external: ['node:sqlite'],
+  // Node built-ins are resolved by Node itself. Native modules must stay
+  // external so they resolve against the consumer's installed binary,
+  // not the bundler's host machine.
+  external: ['better-sqlite3'],
   logLevel: 'info',
 });
 
