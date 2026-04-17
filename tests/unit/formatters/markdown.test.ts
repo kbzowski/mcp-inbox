@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  formatFoldersMarkdown,
-  formatEmailListMarkdown,
-} from '../../../src/formatters/markdown.js';
-import type { Email } from '../../../src/cache/schema.js';
+import { formatFoldersMarkdown, formatEmailListMarkdown } from '../../../src/formatters/markdown';
+import type { Email } from '../../../src/cache/schema';
 
 describe('formatFoldersMarkdown', () => {
   it('renders an empty list with a placeholder', () => {

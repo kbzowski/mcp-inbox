@@ -1,17 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { getEmailTool } from '../../../src/tools/emails/get-email.js';
-import { searchEmailsTool } from '../../../src/tools/emails/search-emails.js';
-import { getDraftTool } from '../../../src/tools/drafts/get-draft.js';
-import { listEmailsTool } from '../../../src/tools/emails/list-emails.js';
-import { markReadTool, markUnreadTool } from '../../../src/tools/emails/mark-read.js';
-import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder.js';
-import { deleteEmailTool } from '../../../src/tools/emails/delete-email.js';
-import { createDraftTool } from '../../../src/tools/drafts/create-draft.js';
-import { updateDraftTool } from '../../../src/tools/drafts/update-draft.js';
-import { sendEmailTool } from '../../../src/tools/send/send-email.js';
-import { sendDraftTool } from '../../../src/tools/send/send-draft.js';
-import { replyTool } from '../../../src/tools/send/reply.js';
-import { forwardTool } from '../../../src/tools/send/forward.js';
+import { getEmailTool } from '../../../src/tools/emails/get-email';
+import { searchEmailsTool } from '../../../src/tools/emails/search-emails';
+import { getDraftTool } from '../../../src/tools/drafts/get-draft';
+import { listEmailsTool } from '../../../src/tools/emails/list-emails';
+import { markReadTool, markUnreadTool } from '../../../src/tools/emails/mark-read';
+import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder';
+import { deleteEmailTool } from '../../../src/tools/emails/delete-email';
+import { createDraftTool } from '../../../src/tools/drafts/create-draft';
+import { updateDraftTool } from '../../../src/tools/drafts/update-draft';
+import { sendEmailTool } from '../../../src/tools/send/send-email';
+import { sendDraftTool } from '../../../src/tools/send/send-draft';
+import { replyTool } from '../../../src/tools/send/reply';
+import { forwardTool } from '../../../src/tools/send/forward';
 
 /**
  * Tool handlers are integration-heavy, but their Zod schemas are pure

@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { deleteEmail } from '../../cache/queries.js';
+import { defineTool } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { deleteEmail } from '../../cache/queries';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Current folder of the message.'),

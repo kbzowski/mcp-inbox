@@ -5,9 +5,9 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
-import * as schema from './schema.js';
-import { CacheError } from '../errors/types.js';
-import { createLogger } from '../utils/logger.js';
+import * as schema from './schema';
+import { CacheError } from '../errors/types';
+import { createLogger } from '../utils/logger';
 
 /**
  * Default migrations folder resolved relative to this module.

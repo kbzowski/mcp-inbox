@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { ImapError } from '../../errors/types.js';
-import { buildRawMessage } from '../../imap/mime-builder.js';
-import { deleteEmail } from '../../cache/queries.js';
-import { resolveSpecialFolder } from '../emails/shared.js';
+import { defineTool } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { ImapError } from '../../errors/types';
+import { buildRawMessage } from '../../imap/mime-builder';
+import { deleteEmail } from '../../cache/queries';
+import { resolveSpecialFolder } from '../emails/shared';
 
 const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
 

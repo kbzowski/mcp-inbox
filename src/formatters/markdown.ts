@@ -1,4 +1,4 @@
-import type { Email } from '../cache/schema.js';
+import type { Email } from '../cache/schema';
 
 export interface FolderSummary {
   path: string;

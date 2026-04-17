@@ -1,4 +1,4 @@
-import { ImapError, SmtpError, McpInboxError, type ErrorCode } from './types.js';
+import { ImapError, SmtpError, McpInboxError, type ErrorCode } from './types';
 
 /**
  * Convert raw IMAP/SMTP driver errors into actionable McpInboxError instances.

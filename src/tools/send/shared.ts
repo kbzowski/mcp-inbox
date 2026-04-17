@@ -1,6 +1,6 @@
-import type { ToolContext } from '../define-tool.js';
-import { ToolInputError } from '../../errors/types.js';
-import { resolveSpecialFolder } from '../emails/shared.js';
+import type { ToolContext } from '../define-tool';
+import { ToolInputError } from '../../errors/types';
+import { resolveSpecialFolder } from '../emails/shared';
 
 /**
  * Normalize an address field (which the Zod schema accepts as

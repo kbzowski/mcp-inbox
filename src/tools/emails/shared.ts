@@ -1,8 +1,8 @@
 import { simpleParser } from 'mailparser';
-import type { ToolContext } from '../define-tool.js';
-import { ImapError } from '../../errors/types.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { syncFolder } from '../../cache/sync.js';
+import type { ToolContext } from '../define-tool';
+import { ImapError } from '../../errors/types';
+import { mapImapError } from '../../errors/mapper';
+import { syncFolder } from '../../cache/sync';
 import {
   countEmailsInFolder,
   getEmail,
@@ -11,9 +11,9 @@ import {
   listEmailsByFolder,
   setEmailBody,
   type ListEmailsOptions,
-} from '../../cache/queries.js';
-import type { Email } from '../../cache/schema.js';
-import { findSpecialFolder, type SpecialUseAttr } from '../../imap/folders.js';
+} from '../../cache/queries';
+import type { Email } from '../../cache/schema';
+import { findSpecialFolder, type SpecialUseAttr } from '../../imap/folders';
 
 /**
  * Sync a folder if its cache is older than `maxStalenessSec`. Returns

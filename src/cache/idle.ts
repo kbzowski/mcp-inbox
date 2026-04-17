@@ -1,10 +1,10 @@
 import type { ImapFlow, ExistsEvent, ExpungeEvent, FlagsEvent } from 'imapflow';
-import type { AppConfig } from '../config/env.js';
-import type { CacheDb } from './db.js';
-import { createImapConnection } from '../imap/client.js';
-import { syncFolder } from './sync.js';
-import { deleteEmail, setEmailFlags } from './queries.js';
-import { createLogger } from '../utils/logger.js';
+import type { AppConfig } from '../config/env';
+import type { CacheDb } from './db';
+import { createImapConnection } from '../imap/client';
+import { syncFolder } from './sync';
+import { deleteEmail, setEmailFlags } from './queries';
+import { createLogger } from '../utils/logger';
 
 const log = createLogger('mcp-inbox:idle');
 

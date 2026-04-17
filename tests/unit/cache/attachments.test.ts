@@ -8,7 +8,7 @@ import {
   writeAttachment,
   readAttachment,
   deleteAttachmentFile,
-} from '../../../src/cache/attachments.js';
+} from '../../../src/cache/attachments';
 
 describe('attachment file store', () => {
   let cacheDir: string;

@@ -1,9 +1,9 @@
 import type { FetchMessageObject, ImapFlow, MailboxObject, MessageStructureObject } from 'imapflow';
-import type { CacheDb } from './db.js';
-import { mapImapError } from '../errors/mapper.js';
-import { createLogger } from '../utils/logger.js';
-import { deleteEmailsByFolder, getFolder, upsertEmail, upsertFolder } from './queries.js';
-import type { EmailInsert } from './schema.js';
+import type { CacheDb } from './db';
+import { mapImapError } from '../errors/mapper';
+import { createLogger } from '../utils/logger';
+import { deleteEmailsByFolder, getFolder, upsertEmail, upsertFolder } from './queries';
+import type { EmailInsert } from './schema';
 
 const log = createLogger('mcp-inbox:sync');
 

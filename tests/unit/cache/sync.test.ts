@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MessageStructureObject } from 'imapflow';
-import { hasAttachments } from '../../../src/cache/sync.js';
+import { hasAttachments } from '../../../src/cache/sync';
 
 /**
  * Build a minimal MessageStructureObject for tests. Only the fields the

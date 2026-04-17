@@ -1,7 +1,7 @@
 import { ImapFlow } from 'imapflow';
-import type { AppConfig } from '../config/env.js';
-import { mapImapError } from '../errors/mapper.js';
-import { createLogger } from '../utils/logger.js';
+import type { AppConfig } from '../config/env';
+import { mapImapError } from '../errors/mapper';
+import { createLogger } from '../utils/logger';
 
 const log = createLogger('mcp-inbox:imap');
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { IdleManager } from '../../../src/cache/idle.js';
-import { openCache } from '../../../src/cache/db.js';
+import { IdleManager } from '../../../src/cache/idle';
+import { openCache } from '../../../src/cache/db';
 import { resolve } from 'node:path';
 
 /**

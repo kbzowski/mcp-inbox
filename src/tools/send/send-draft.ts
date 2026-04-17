@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { ImapError, ToolInputError } from '../../errors/types.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { deleteEmail } from '../../cache/queries.js';
-import { resolveSpecialFolder } from '../emails/shared.js';
-import { sendRawAndAppendSent } from './shared.js';
+import { defineTool } from '../define-tool';
+import { ImapError, ToolInputError } from '../../errors/types';
+import { mapImapError } from '../../errors/mapper';
+import { deleteEmail } from '../../cache/queries';
+import { resolveSpecialFolder } from '../emails/shared';
+import { sendRawAndAppendSent } from './shared';
 import { simpleParser } from 'mailparser';
 
 const Input = z.object({

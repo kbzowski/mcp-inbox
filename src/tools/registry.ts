@@ -1,21 +1,21 @@
 import { z } from 'zod';
-import type { ToolDefinition } from './define-tool.js';
-import { listFoldersTool } from './folders/list-folders.js';
-import { listEmailsTool } from './emails/list-emails.js';
-import { getEmailTool } from './emails/get-email.js';
-import { searchEmailsTool } from './emails/search-emails.js';
-import { markReadTool, markUnreadTool } from './emails/mark-read.js';
-import { moveToFolderTool } from './emails/move-to-folder.js';
-import { deleteEmailTool } from './emails/delete-email.js';
-import { listDraftsTool } from './drafts/list-drafts.js';
-import { getDraftTool } from './drafts/get-draft.js';
-import { createDraftTool } from './drafts/create-draft.js';
-import { updateDraftTool } from './drafts/update-draft.js';
-import { sendEmailTool } from './send/send-email.js';
-import { sendDraftTool } from './send/send-draft.js';
-import { replyTool } from './send/reply.js';
-import { forwardTool } from './send/forward.js';
-import { getAttachmentTool } from './attachments/get-attachment.js';
+import type { ToolDefinition } from './define-tool';
+import { listFoldersTool } from './folders/list-folders';
+import { listEmailsTool } from './emails/list-emails';
+import { getEmailTool } from './emails/get-email';
+import { searchEmailsTool } from './emails/search-emails';
+import { markReadTool, markUnreadTool } from './emails/mark-read';
+import { moveToFolderTool } from './emails/move-to-folder';
+import { deleteEmailTool } from './emails/delete-email';
+import { listDraftsTool } from './drafts/list-drafts';
+import { getDraftTool } from './drafts/get-draft';
+import { createDraftTool } from './drafts/create-draft';
+import { updateDraftTool } from './drafts/update-draft';
+import { sendEmailTool } from './send/send-email';
+import { sendDraftTool } from './send/send-draft';
+import { replyTool } from './send/reply';
+import { forwardTool } from './send/forward';
+import { getAttachmentTool } from './attachments/get-attachment';
 
 /**
  * Every tool that exists. Adding a tool means importing it here and

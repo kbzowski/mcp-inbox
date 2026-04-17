@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { ensureBodyCached, ensureEnvelopeCached, projectEmailSummary } from './shared.js';
+import { defineTool } from '../define-tool';
+import { ensureBodyCached, ensureEnvelopeCached, projectEmailSummary } from './shared';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the message.'),

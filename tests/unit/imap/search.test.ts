@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildImapSearch } from '../../../src/imap/search.js';
+import { buildImapSearch } from '../../../src/imap/search';
 
 describe('buildImapSearch', () => {
   it('returns { all: true } when no criteria are provided', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { resolve } from 'node:path';
-import { openCache, type CacheHandle } from '../../../src/cache/db.js';
+import { openCache, type CacheHandle } from '../../../src/cache/db';
 import {
   upsertFolder,
   getFolder,
@@ -19,7 +19,7 @@ import {
   getAttachment,
   linkEmailAttachment,
   listAttachmentsForEmail,
-} from '../../../src/cache/queries.js';
+} from '../../../src/cache/queries';
 
 const MIGRATIONS = resolve(process.cwd(), 'src/cache/migrations');
 

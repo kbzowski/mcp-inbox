@@ -4,10 +4,10 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { isMcpInboxError } from './errors/mapper.js';
-import { createLogger } from './utils/logger.js';
-import type { ToolContext } from './tools/define-tool.js';
-import { findTool, listToolEntries } from './tools/registry.js';
+import { isMcpInboxError } from './errors/mapper';
+import { createLogger } from './utils/logger';
+import type { ToolContext } from './tools/define-tool';
+import { findTool, listToolEntries } from './tools/registry';
 
 const log = createLogger('mcp-inbox:server');
 

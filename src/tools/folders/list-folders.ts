@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { formatFoldersMarkdown, type FolderSummary } from '../../formatters/markdown.js';
+import { defineTool } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { formatFoldersMarkdown, type FolderSummary } from '../../formatters/markdown';
 
 const Input = z.object({
   response_format: z.enum(['markdown', 'json']).default('markdown'),

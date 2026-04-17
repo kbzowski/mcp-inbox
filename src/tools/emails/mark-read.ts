@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { defineTool, type ToolContext } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { getEmail, setEmailFlags } from '../../cache/queries.js';
+import { defineTool, type ToolContext } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { getEmail, setEmailFlags } from '../../cache/queries';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the message.'),

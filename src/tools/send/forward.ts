@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { buildRawMessage } from '../../imap/mime-builder.js';
-import { ensureBodyCached, ensureEnvelopeCached } from '../emails/shared.js';
-import { flattenCompose, sendRawAndAppendSent } from './shared.js';
+import { defineTool } from '../define-tool';
+import { buildRawMessage } from '../../imap/mime-builder';
+import { ensureBodyCached, ensureEnvelopeCached } from '../emails/shared';
+import { flattenCompose, sendRawAndAppendSent } from './shared';
 
 const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
 

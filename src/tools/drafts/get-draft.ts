@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
+import { defineTool } from '../define-tool';
 import {
   ensureBodyCached,
   ensureEnvelopeCached,
   projectEmailSummary,
   resolveSpecialFolder,
-} from '../emails/shared.js';
+} from '../emails/shared';
 
 const Input = z.object({
   uid: z

@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import type { CacheDb } from './db.js';
+import type { CacheDb } from './db';
 import {
   folders,
   emails,
@@ -11,7 +11,7 @@ import {
   type EmailInsert,
   type Attachment,
   type AttachmentInsert,
-} from './schema.js';
+} from './schema';
 
 // ─── Folders ─────────────────────────────────────────────────────────────
 

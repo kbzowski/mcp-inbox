@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { simpleParser, type AddressObject } from 'mailparser';
-import { buildRawMessage } from '../../../src/imap/mime-builder.js';
+import { buildRawMessage } from '../../../src/imap/mime-builder';
 
 /** Narrow mailparser's `AddressObject | AddressObject[]` to a text blob. */
 function addrText(a: AddressObject | AddressObject[] | undefined): string {

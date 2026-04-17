@@ -1,13 +1,13 @@
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { loadConfig, type AppConfig } from './config/env.js';
-import { openCache } from './cache/db.js';
-import { IdleManager } from './cache/idle.js';
-import { ImapClient } from './imap/client.js';
-import { SmtpClient } from './smtp/client.js';
-import { createMcpServer } from './server.js';
-import type { ToolContext } from './tools/define-tool.js';
-import { configureLogger, rootLogger } from './utils/logger.js';
+import { loadConfig, type AppConfig } from './config/env';
+import { openCache } from './cache/db';
+import { IdleManager } from './cache/idle';
+import { ImapClient } from './imap/client';
+import { SmtpClient } from './smtp/client';
+import { createMcpServer } from './server';
+import type { ToolContext } from './tools/define-tool';
+import { configureLogger, rootLogger } from './utils/logger';
 
 function loadConfigOrExit(): AppConfig {
   try {

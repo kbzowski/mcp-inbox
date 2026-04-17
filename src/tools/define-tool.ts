@@ -1,8 +1,8 @@
 import type { z } from 'zod';
-import type { AppConfig } from '../config/env.js';
-import type { CacheDb } from '../cache/db.js';
-import type { ImapClient } from '../imap/client.js';
-import type { SmtpClient } from '../smtp/client.js';
+import type { AppConfig } from '../config/env';
+import type { CacheDb } from '../cache/db';
+import type { ImapClient } from '../imap/client';
+import type { SmtpClient } from '../smtp/client';
 
 /**
  * Runtime context passed to every tool handler. Tools receive the live

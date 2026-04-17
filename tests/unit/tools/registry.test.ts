@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findTool, listToolEntries, tools } from '../../../src/tools/registry.js';
+import { findTool, listToolEntries, tools } from '@/tools/registry';
 
 describe('tool registry', () => {
   it('exposes the expected tool set', () => {

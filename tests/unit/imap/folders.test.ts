@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ListResponse } from 'imapflow';
-import { findSpecialFolder } from '../../../src/imap/folders.js';
+import { findSpecialFolder } from '../../../src/imap/folders';
 
 /**
  * Build a minimal ListResponse for tests. Only the fields the function

@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "lib": ["ES2023"],
     "types": ["node"],
 
@@ -21,6 +21,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+
+    // Alias: import from '@/cache/queries' resolves to src/cache/queries.
+    // Picked up by tsc (for types), vitest (via vite's resolver), esbuild
+    // (reads tsconfig paths natively), and tsx (handles bundler mode).
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
 
     "outDir": "dist",
     "rootDir": ".",

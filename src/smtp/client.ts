@@ -1,8 +1,8 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
-import type { AppConfig } from '../config/env.js';
-import { mapSmtpError } from '../errors/mapper.js';
-import { createLogger } from '../utils/logger.js';
+import type { AppConfig } from '../config/env';
+import { mapSmtpError } from '../errors/mapper';
+import { createLogger } from '../utils/logger';
 
 const log = createLogger('mcp-inbox:smtp');
 

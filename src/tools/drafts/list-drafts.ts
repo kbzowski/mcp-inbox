@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { formatEmailListMarkdown } from '../../formatters/markdown.js';
+import { defineTool } from '../define-tool';
+import { formatEmailListMarkdown } from '../../formatters/markdown';
 import {
   projectEmailSummary,
   readEnvelopes,
   resolveSpecialFolder,
   syncIfStale,
-} from '../emails/shared.js';
+} from '../emails/shared';
 
 const Input = z.object({
   folder: z

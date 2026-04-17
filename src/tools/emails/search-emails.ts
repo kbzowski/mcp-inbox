@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { buildImapSearch } from '../../imap/search.js';
-import { getEmail } from '../../cache/queries.js';
-import type { Email } from '../../cache/schema.js';
-import { formatEmailListMarkdown } from '../../formatters/markdown.js';
-import { projectEmailSummary, syncIfStale } from './shared.js';
+import { defineTool } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { buildImapSearch } from '../../imap/search';
+import { getEmail } from '../../cache/queries';
+import type { Email } from '../../cache/schema';
+import { formatEmailListMarkdown } from '../../formatters/markdown';
+import { projectEmailSummary, syncIfStale } from './shared';
 
 const Input = z
   .object({

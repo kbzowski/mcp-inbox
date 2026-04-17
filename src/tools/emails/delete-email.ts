@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { ImapError } from '../../errors/types.js';
-import { deleteEmail } from '../../cache/queries.js';
-import { resolveSpecialFolder } from './shared.js';
+import { defineTool } from '../define-tool';
+import { mapImapError } from '../../errors/mapper';
+import { ImapError } from '../../errors/types';
+import { deleteEmail } from '../../cache/queries';
+import { resolveSpecialFolder } from './shared';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the message to delete.'),

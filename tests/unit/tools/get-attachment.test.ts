@@ -3,7 +3,7 @@ import type { MessageStructureObject } from 'imapflow';
 import {
   findAttachmentPart,
   getAttachmentTool,
-} from '../../../src/tools/attachments/get-attachment.js';
+} from '../../../src/tools/attachments/get-attachment';
 
 function part(over: Partial<MessageStructureObject>): MessageStructureObject {
   return { type: 'text/plain', ...over };

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { CacheError } from '../errors/types.js';
+import { CacheError } from '../errors/types';
 
 /**
  * Content-addressed attachment store.

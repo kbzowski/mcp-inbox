@@ -1,15 +1,15 @@
 import { z } from 'zod';
 import type { Readable } from 'node:stream';
 import type { MessageStructureObject } from 'imapflow';
-import { defineTool } from '../define-tool.js';
-import { ImapError, CacheError } from '../../errors/types.js';
-import { mapImapError } from '../../errors/mapper.js';
-import { hashBytes, writeAttachment } from '../../cache/attachments.js';
+import { defineTool } from '../define-tool';
+import { ImapError, CacheError } from '../../errors/types';
+import { mapImapError } from '../../errors/mapper';
+import { hashBytes, writeAttachment } from '../../cache/attachments';
 import {
   linkEmailAttachment,
   upsertAttachment,
   listAttachmentsForEmail,
-} from '../../cache/queries.js';
+} from '../../cache/queries';
 
 const Input = z
   .object({
