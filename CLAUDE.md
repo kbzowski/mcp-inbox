@@ -8,11 +8,11 @@ MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to
 
 ## Runtime & tooling
 
-- **Node.js 24 LTS** - `engines.node: ">=24.0.0"`. SQLite via `better-sqlite3` (prebuilt binaries, no build toolchain required). Previously planned `node:sqlite` but Drizzle ORM does not yet ship a driver for it (drizzle-team/drizzle-orm#2648).
+- **Node.js 24 LTS** - `engines.node: ">=24.0.0"`. SQLite via Node's built-in `node:sqlite` (zero native deps, zero install scripts, no ABI mismatches). `node:sqlite` still emits an ExperimentalWarning on load; it's filtered by `src/utils/suppress-sqlite-warning.ts`, which only works because the build emits `dist/index.js` and `dist/app.js` as separate files and the entry dynamically imports the app (see `scripts/build.mjs`). Don't collapse the two bundles.
 - **TypeScript strict** with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Do not disable.
 - **ESM only** (`"type": "module"`). Use `.js` import extensions in source (TS resolves them at compile time).
 - **Zod v4** is the single source of truth for all external inputs - env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.
-- **Drizzle ORM** (`drizzle-orm/better-sqlite3`) is the cache layer. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
+- **Drizzle ORM** (`drizzle-orm/node-sqlite`) is the cache layer; pinned to an exact `1.0.0-beta.X` version because the 1.0 line is still pre-release. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
 
 ## Architecture
 

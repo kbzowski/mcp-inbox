@@ -1,10 +1,9 @@
-import Database from 'better-sqlite3';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { drizzle } from 'drizzle-orm/node-sqlite';
+import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import * as schema from './schema';
 import { CacheError } from '../errors/types';
 import { createLogger } from '../utils/logger';
@@ -32,11 +31,9 @@ export interface CacheHandle {
  * Open (or create) the cache database, run pending migrations, and return
  * a Drizzle-wrapped handle.
  *
- * Why better-sqlite3 and not node:sqlite: Drizzle 0.45.x does not yet
- * ship a node:sqlite driver (tracking issue: drizzle-team/drizzle-orm#2648).
- * better-sqlite3 is Drizzle's first-class SQLite driver, synchronous
- * (matches our call-graph assumptions), and ships prebuilt binaries for
- * Windows/macOS/Linux on Node 24 so end users don't need a build toolchain.
+ * Backed by Node 24's built-in `node:sqlite` - zero native dependencies,
+ * zero install scripts, no ABI mismatches. Drizzle exposes it via the
+ * `drizzle-orm/node-sqlite` driver (added in drizzle-orm 1.0.0-beta.16).
  *
  * @param path Absolute file path, or `:memory:` for an in-process database
  *             (used by unit tests).
@@ -56,20 +53,20 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
     }
   }
 
-  let sqlite: DatabaseType;
+  let sqlite: DatabaseSync;
   try {
-    sqlite = new Database(path);
+    sqlite = new DatabaseSync(path);
   } catch (err) {
     throw new CacheError('CACHE_IO_FAILED', diagnoseOpenError(path, err), err);
   }
 
   // Durability + concurrency pragmas. WAL allows concurrent reads during
   // writes; foreign_keys enforces the references() constraints in schema.ts.
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('foreign_keys = ON');
-  sqlite.pragma('synchronous = NORMAL');
+  sqlite.exec('PRAGMA journal_mode = WAL;');
+  sqlite.exec('PRAGMA foreign_keys = ON;');
+  sqlite.exec('PRAGMA synchronous = NORMAL;');
 
-  const db = drizzle(sqlite, { schema });
+  const db = drizzle({ client: sqlite, schema });
 
   if (migrationsFolder) {
     try {
@@ -100,12 +97,10 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
 }
 
 /**
- * Turn whatever better-sqlite3 threw into an actionable message. The old
- * version of this code always said "Check IMAP_CACHE_DIR permissions",
- * which is almost never the real cause - the common ones are:
- *  - the native binding failed to load (bad prebuild / wrong Node ABI)
+ * Turn whatever node:sqlite threw into an actionable message. Common causes:
  *  - the db file is locked by another mcp-inbox instance
- *  - actual permission denied (rare, but covered)
+ *  - permission denied on the cache dir
+ *  - path missing / disk full
  *
  * Exported for unit tests.
  */
@@ -117,18 +112,7 @@ export function diagnoseOpenError(path: string, err: unknown): string {
       : undefined;
 
   let hint: string;
-  if (
-    /cannot find module|invalid elf|was compiled against|node_modules[\\/]better-sqlite3/i.test(msg)
-  ) {
-    hint =
-      'The better-sqlite3 native binding failed to load. Try:\n' +
-      '  npm rebuild better-sqlite3\n' +
-      'or reinstall: npm install -g @kbzowski/mcp-inbox --force';
-  } else if (
-    code === 'EACCES' ||
-    code === 'EPERM' ||
-    /permission denied|operation not permitted/i.test(msg)
-  ) {
+  if (code === 'EACCES' || code === 'EPERM' || /permission denied|operation not permitted/i.test(msg)) {
     hint = 'Permission denied. Check that IMAP_CACHE_DIR is writable by the current user.';
   } else if (code === 'EBUSY' || /database is locked|SQLITE_BUSY|locked/i.test(msg)) {
     hint =

@@ -1,17 +1,26 @@
-// esbuild bundler for the mcp-inbox binary.
-// Produces a single-file ESM bundle at dist/index.js with a Node shebang.
+// esbuild bundler for the mcp-inbox binary. Produces two bundles:
+//   dist/index.js  (tiny entry: installs warning filter, then imports app)
+//   dist/app.js    (the real application)
+//
+// Why two files: the entry file must install a warning filter BEFORE any
+// module that loads node:sqlite is resolved. In ESM, static `import`
+// statements hoist above top-level code, so mixing the filter and the app
+// imports in one bundle defeats the ordering. Dynamic `await import()`
+// does not hoist - keeping app as a separate file on disk preserves the
+// deferred-load boundary that lets the filter install first.
+//
 // Type declarations are emitted separately via `tsc -p tsconfig.build.json`.
 
 import { build } from 'esbuild';
 import { rm, chmod, cp } from 'node:fs/promises';
 
-const OUTFILE = 'dist/index.js';
+const ENTRY = 'dist/index.js';
 
 await rm('dist', { recursive: true, force: true });
 
 await build({
-  entryPoints: ['src/index.ts'],
-  outfile: OUTFILE,
+  entryPoints: ['src/app.ts'],
+  outdir: 'dist',
   bundle: true,
   platform: 'node',
   target: 'node24',
@@ -19,11 +28,28 @@ await build({
   minify: false,
   sourcemap: true,
   banner: {
-    // Shebang at the top of the bundle so `npx mcp-inbox` runs it.
-    // Paired with a second import() shim that teaches the ESM bundle
-    // how to require() the CommonJS deps (nodemailer, better-sqlite3,
-    // imapflow, mailparser) - without this shim esbuild's own fallback
-    // throws "Dynamic require of ... is not supported" at runtime.
+    js: `import { createRequire as __mcpCreateRequire } from 'node:module';
+globalThis.require = globalThis.require ?? __mcpCreateRequire(import.meta.url);`,
+  },
+  packages: 'external',
+  logLevel: 'info',
+});
+
+await build({
+  entryPoints: ['src/index.ts'],
+  outdir: 'dist',
+  bundle: true,
+  external: ['./app.js'],
+  platform: 'node',
+  target: 'node24',
+  format: 'esm',
+  minify: false,
+  sourcemap: true,
+  banner: {
+    // Shebang at the top of each bundle. Paired with a createRequire shim
+    // so the ESM output can require() CommonJS deps (nodemailer, imapflow,
+    // mailparser) without esbuild's fallback throwing "Dynamic require of
+    // ... is not supported" at runtime.
     js: `#!/usr/bin/env node
 import { createRequire as __mcpCreateRequire } from 'node:module';
 globalThis.require = globalThis.require ?? __mcpCreateRequire(import.meta.url);`,
@@ -42,7 +68,7 @@ await cp('src/cache/migrations', 'dist/migrations', { recursive: true });
 
 // Make the binary executable on POSIX. No-op on Windows.
 try {
-  await chmod(OUTFILE, 0o755);
+  await chmod(ENTRY, 0o755);
 } catch {
   // chmod is best-effort; Windows rejects it but the shebang is still correct.
 }
