@@ -341,7 +341,52 @@ On success you'll see JSON log lines on stderr: `booting mcp-inbox` and `mcp-inb
 
 ## Tool catalog
 
-_Tools land in Phase 5 of the roadmap. Planned surface: `imap_list_folders`, `imap_list_emails`, `imap_get_email`, `imap_search_emails`, `imap_list_drafts`, `imap_get_draft`, `imap_mark_read`, `imap_mark_unread`, `imap_move_to_folder`, `imap_delete_email`, `imap_create_draft`, `imap_update_draft`, `imap_send_email`, `imap_send_draft`, `imap_reply`, `imap_forward`, `imap_get_attachment`._
+All tools are prefixed `imap_` so they don't collide with other email MCPs. Every read tool accepts `response_format: "markdown" | "json"` (default markdown) and `max_staleness_seconds` (default 60 - serves from cache when fresh, syncs otherwise).
+
+### Discovery
+
+- **`imap_list_folders`** - list every mailbox with its path, delimiter, and RFC 6154 special-use attribute (`\Drafts`, `\Sent`, `\Trash`, `\Junk`).
+- **`imap_list_emails`** `(folder?, limit?, offset?, unseen_only?, since_date?, before_date?)` - paginated envelope list, newest first. Defaults to `INBOX`, 20 per page.
+- **`imap_search_emails`** `(folder?, subject?, from?, to?, body?, unseen?, since_date?, before_date?)` - IMAP SEARCH on the server, returns matching envelopes from the cache. At least one criterion required.
+
+### Reading
+
+- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, attachment metadata. Body fetched lazily on first call, cached after.
+- **`imap_list_drafts`** `(folder?, limit?, offset?)` - same as list_emails but auto-resolves the Drafts folder via SPECIAL-USE.
+- **`imap_get_draft`** `(uid, folder?)` - full draft content by UID.
+- **`imap_get_attachment`** `(folder, uid, filename? | part_id?, return_mode?)` - download an attachment. `return_mode` is `file_path` (default, content-addressed local cache), `base64` (inline, ≤5 MB by default), or `metadata_only` (no download).
+
+### Flagging / filing
+
+- **`imap_mark_read`** `(folder, uid)` - add `\Seen`. Idempotent.
+- **`imap_mark_unread`** `(folder, uid)` - remove `\Seen`. Idempotent.
+- **`imap_move_to_folder`** `(folder, uid, destination)` - IMAP MOVE with COPY+EXPUNGE fallback.
+- **`imap_delete_email`** `(folder, uid, hard_delete?)` - defaults to move-to-Trash. `hard_delete: true` permanently expunges.
+
+### Composing
+
+- **`imap_create_draft`** `(to, subject, body?, html?, cc?, bcc?, from?)` - appends a new draft to the Drafts folder with the `\Draft` flag. nodemailer handles the RFC 2822 construction, so non-ASCII subjects, long bodies, and multipart text+HTML all just work.
+- **`imap_update_draft`** `(uid, to, subject, body?, html?, cc?, bcc?, from?)` - replaces an existing draft. Append-then-delete: the new draft is written first, only then is the old UID removed. A failure in the middle never loses the draft.
+
+### Sending
+
+- **`imap_send_email`** `(to, subject, body?, html?, cc?, bcc?, from?)` - SMTP send + best-effort append to the Sent folder so the message shows up in the user's mail client.
+- **`imap_send_draft`** `(uid, folder?)` - fetches raw source of the draft, sends it exactly as written (preserves attachments and formatting), then deletes the draft.
+- **`imap_reply`** `(folder, uid, body?, html?, reply_all?, cc?, bcc?, from?)` - preserves threading via `In-Reply-To` / `References`. Subject gets a `Re: ` prefix.
+- **`imap_forward`** `(folder, uid, to, body?, cc?, bcc?, from?)` - quotes the original inline, `Fwd: ` subject prefix.
+
+### Tool annotations
+
+Every tool carries MCP annotations so clients can gate destructive actions:
+
+| Tool | readOnly | destructive | idempotent |
+|---|:-:|:-:|:-:|
+| list_folders / list_emails / get_email / search_emails / list_drafts / get_draft | ✓ | | ✓ |
+| mark_read / mark_unread | | | ✓ |
+| move_to_folder / delete_email | | ✓ | |
+| create_draft / update_draft | | | |
+| send_email / send_draft / reply / forward | | ✓ | |
+| get_attachment | | | ✓ |
 
 ---
 

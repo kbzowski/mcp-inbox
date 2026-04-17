@@ -67,3 +67,35 @@ src/
 | `npm run test:integration` | Vitest integration (requires GreenMail) |
 | `npm run db:generate` | drizzle-kit generate migrations from `src/cache/schema.ts` |
 | `npm run release` | `changeset publish` - publish a new version |
+
+## Release
+
+First publish (0.1.0):
+
+```bash
+# Fresh build + verify everything passes
+npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build
+
+# See what ends up in the tarball
+npm pack --dry-run
+
+# Publish with provenance (requires npm login)
+npm publish --provenance --access public
+```
+
+Subsequent releases use changesets:
+
+```bash
+# 1. While making changes, for each user-visible change:
+npx changeset add
+
+# 2. When ready to release - bumps package.json, writes CHANGELOG.md:
+npx changeset version
+
+# 3. Publish:
+npm run release
+```
+
+Changesets maps `patch | minor | major` in each changeset file to a
+semver bump per standard rules. For 0.x versions, treat `minor` as
+the "new feature" bump and `patch` as "fix only."
