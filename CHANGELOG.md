@@ -1,5 +1,11 @@
 # @kbzowski/mcp-inbox
 
+## 0.3.1
+
+### Patch Changes
+
+- Add Node 24 version guard at startup. When run under Node 22 or earlier (e.g. because proto resolves to an older version outside the project directory), the server now exits immediately with a clear actionable error instead of crashing silently. Adds README troubleshooting section for proto / nvm / fnm users.
+
 ## 0.3.0
 
 ### Minor Changes
