@@ -4,7 +4,7 @@
 
 Works with any IMAP/SMTP provider: Gmail, Outlook, Fastmail, iCloud, Proton Mail (via Bridge), Dovecot, hosted Exchange, self-hosted mail servers. Tools for listing and searching mail, composing and sending, managing drafts, inspecting attachment metadata. Cache stays in sync with the server via CONDSTORE + IDLE so most reads serve from local SQLite without a network round-trip.
 
-**On attachments:** mcp-inbox deliberately does not download attachment bytes. `imap_get_email` surfaces filename / content type / size so the agent can describe what's attached, but if the user wants the file, they open it in their mail client. The MCP server stays out of the business of caching potentially sensitive content on disk.
+**On attachments:** `imap_get_email` surfaces attachment metadata (filename, content type, size) by default - enough for the agent to describe what's attached without any download. When the agent genuinely needs to read content inside an attachment (search a PDF, extract a table from a CSV), `imap_get_attachment` fetches the bytes inline as base64 for one response. Nothing is cached on disk; re-requesting the same attachment refetches from the server.
 
 **Status:** 0.1.0, early. See `CLAUDE.md` for architecture notes.
 
@@ -353,9 +353,10 @@ All tools are prefixed `imap_` so they don't collide with other email MCPs. Ever
 
 ### Reading
 
-- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, and attachment metadata (filename, content type, size). Attachment bytes are never downloaded.
+- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, and attachment metadata (filename, content type, size).
 - **`imap_list_drafts`** `(folder?, limit?, offset?)` - same as list_emails but auto-resolves the Drafts folder via SPECIAL-USE.
 - **`imap_get_draft`** `(uid, folder?)` - full draft content by UID.
+- **`imap_get_attachment`** `(folder, uid, filename? | part_id?, max_inline_mb?)` - download an attachment as base64 bytes, inline in the response. Memory-only, no disk cache. Default cap is 5 MB; raise via `max_inline_mb` (up to 50).
 
 ### Flagging / filing
 
@@ -382,7 +383,7 @@ Every tool carries MCP annotations so clients can gate destructive actions:
 
 | Tool | readOnly | destructive | idempotent |
 |---|:-:|:-:|:-:|
-| list_folders / list_emails / get_email / search_emails / list_drafts / get_draft | ✓ | | ✓ |
+| list_folders / list_emails / get_email / search_emails / list_drafts / get_draft / get_attachment | ✓ | | ✓ |
 | mark_read / mark_unread | | | ✓ |
 | move_to_folder / delete_email | | ✓ | |
 | create_draft / update_draft | | | |
