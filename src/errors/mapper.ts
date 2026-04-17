@@ -37,11 +37,12 @@ export function mapImapError(err: unknown): ImapError {
   }
 
   if (
+    code === 'AUTHENTICATIONFAILED' ||
+    code === 'EAUTH' ||
     lower.includes('invalid credentials') ||
     lower.includes('authentication failed') ||
     lower.includes('auth failed') ||
-    lower.includes('login failed') ||
-    code === 'AUTHENTICATIONFAILED'
+    lower.includes('login failed')
   ) {
     return new ImapError(
       'IMAP_AUTH_FAILED',
@@ -77,9 +78,10 @@ export function mapSmtpError(err: unknown): SmtpError {
   const lower = message.toLowerCase();
 
   if (
+    code === 'EAUTH' ||
     lower.includes('invalid login') ||
-    lower.includes('authentication') ||
-    code === 'EAUTH'
+    lower.includes('authentication failed') ||
+    lower.includes('auth failed')
   ) {
     return new SmtpError(
       'SMTP_AUTH_FAILED',
@@ -88,7 +90,15 @@ export function mapSmtpError(err: unknown): SmtpError {
     );
   }
 
-  if (code === 'ECONNECTION' || code === 'EENVELOPE' || lower.includes('connect')) {
+  if (
+    code === 'ECONNECTION' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ETIMEDOUT' ||
+    code === 'EENVELOPE' ||
+    lower.includes('cannot connect') ||
+    lower.includes('could not connect') ||
+    lower.includes('connection refused')
+  ) {
     return new SmtpError(
       'SMTP_SEND_FAILED',
       'Could not connect to the SMTP server. Check SMTP_HOST / SMTP_PORT. Outlook requires SMTP_PORT=587 and SMTP_SECURE=false.',
@@ -102,6 +112,15 @@ export function mapSmtpError(err: unknown): SmtpError {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
+  // Duck-type: some IMAP/SMTP drivers throw plain `{ message, code }` objects.
+  if (
+    err &&
+    typeof err === 'object' &&
+    'message' in err &&
+    typeof err.message === 'string'
+  ) {
+    return err.message;
+  }
   return String(err);
 }
 

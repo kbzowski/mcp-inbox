@@ -41,8 +41,17 @@ try {
     process.exit(0);
   };
 
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  const onSignal = (signal: string): void => {
+    shutdown(signal).catch((err: unknown) => {
+      // shutdown() has its own try/catch; this handles anything that escapes.
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`shutdown failed: ${msg}\n`);
+      process.exit(1);
+    });
+  };
+
+  process.on('SIGINT', () => onSignal('SIGINT'));
+  process.on('SIGTERM', () => onSignal('SIGTERM'));
 
   await server.connect(transport);
   rootLogger.info('mcp-inbox ready');

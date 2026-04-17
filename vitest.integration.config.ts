@@ -11,6 +11,8 @@ export default defineConfig({
     poolOptions: {
       forks: { singleFork: true },
     },
-    globalSetup: ['./tests/integration/setup/greenmail.ts'],
+    passWithNoTests: true,
+    // globalSetup: ['./tests/integration/setup/greenmail.ts'],
+    // ^ re-enabled in Phase 3 when the GreenMail bootstrap lands.
   },
 });

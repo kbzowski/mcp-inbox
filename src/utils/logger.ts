@@ -32,17 +32,19 @@ export interface Logger {
 }
 
 export class LoggerContext {
-  private enabledNamespaces: RegExp[] = [];
-  private minLevel: Level = 'info';
+  // JS hard-private — consumers of the published package cannot poke at these
+  // from plain JS. TS `private` would be compile-time only.
+  #enabledNamespaces: RegExp[] = [];
+  #minLevel: Level = 'info';
 
   configure(opts: { debug?: string; level?: Level }): void {
-    this.enabledNamespaces = parseNamespaces(opts.debug ?? '');
-    this.minLevel = opts.level ?? 'info';
+    this.#enabledNamespaces = parseNamespaces(opts.debug ?? '');
+    this.#minLevel = opts.level ?? 'info';
   }
 
   shouldEmit(level: Level, namespace: string): boolean {
-    if (LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.minLevel]) return true;
-    return this.enabledNamespaces.some((re) => re.test(namespace));
+    if (LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.#minLevel]) return true;
+    return this.#enabledNamespaces.some((re) => re.test(namespace));
   }
 
   emit(level: Level, namespace: string, msg: string, meta?: Record<string, unknown>): void {

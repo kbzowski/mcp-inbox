@@ -22,21 +22,24 @@ const EnvSchema = z
     IMAP_AUTH_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 
     // SMTP (optional; defaulted in transform below)
-    SMTP_HOST: z.string().optional(),
+    // `.min(1)` prevents empty-string envs (e.g. `SMTP_HOST=`) from slipping
+    // through and defeating the `??` fallback in the transform.
+    SMTP_HOST: z.string().min(1).optional(),
     SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
     SMTP_SECURE: BooleanString.default(true),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASSWORD: z.string().optional(),
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASSWORD: z.string().min(1).optional(),
 
     // Cache
     IMAP_CACHE_ENABLED: BooleanString.default(true),
-    IMAP_CACHE_DIR: z.string().optional(),
+    IMAP_CACHE_DIR: z.string().min(1).optional(),
     IMAP_CACHE_MAX_ATTACHMENTS_MB: z.coerce.number().int().positive().default(500),
     IMAP_CACHE_BODY_INLINE: BooleanString.default(false),
     IMAP_CACHE_DEFAULT_STALENESS_SEC: z.coerce.number().int().min(0).default(60),
     IMAP_CACHE_RETAIN_DAYS: z.coerce.number().int().min(0).default(365),
 
     // IDLE
+    IMAP_IDLE_ENABLED: BooleanString.default(true),
     IMAP_IDLE_FOLDERS: CsvList.default(['INBOX']),
 
     // Debug
@@ -68,6 +71,7 @@ const EnvSchema = z
       retainDays: raw.IMAP_CACHE_RETAIN_DAYS,
     },
     idle: {
+      enabled: raw.IMAP_IDLE_ENABLED,
       folders: raw.IMAP_IDLE_FOLDERS,
     },
     debug: raw.DEBUG ?? '',
@@ -90,9 +94,17 @@ function defaultCacheDir(): string {
  * Parses process.env and returns a validated AppConfig.
  * Throws a readable error on invalid/missing configuration;
  * the caller is responsible for exiting the process.
+ *
+ * Empty-string values are treated as "not set". This matches how users
+ * typically write optional env vars in .env files (`SMTP_HOST=`) and
+ * prevents empty strings from defeating the `??` fallbacks downstream.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const parsed = EnvSchema.safeParse(env);
+  const scrubbed: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(env)) {
+    scrubbed[key] = value === '' ? undefined : value;
+  }
+  const parsed = EnvSchema.safeParse(scrubbed);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
