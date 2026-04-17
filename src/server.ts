@@ -1,18 +1,22 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { isMcpInboxError } from './errors/mapper.js';
 import { createLogger } from './utils/logger.js';
+import type { ToolContext } from './tools/define-tool.js';
+import { findTool, listToolEntries } from './tools/registry.js';
 
 const log = createLogger('mcp-inbox:server');
 
 /**
- * Creates the MCP Server instance and wires request handlers.
- *
- * The ListTools and CallTool handlers delegate to the tool registry (added in
- * Phase 5). This stub registers zero tools so the process can boot cleanly and
- * respond to the MCP handshake - useful for smoke-testing the scaffolding.
+ * Create the MCP Server instance and wire its request handlers to the
+ * tool registry. The `ctx` is captured in a closure so handlers can
+ * resolve the live DB / IMAP / config without a hidden singleton.
  */
-export function createMcpServer(): Server {
+export function createMcpServer(ctx: ToolContext): Server {
   const server = new Server(
     {
       name: 'mcp-inbox',
@@ -26,21 +30,43 @@ export function createMcpServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, () => {
-    return { tools: [] };
+    return { tools: listToolEntries() };
   });
 
-  server.setRequestHandler(CallToolRequestSchema, (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const toolName = request.params.name;
-    log.warn('tool call with no tools registered', { tool: toolName });
-    return {
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: `Unknown tool: ${toolName}. Tool registry is not yet initialized.`,
-        },
-      ],
-    };
+    const tool = findTool(toolName);
+    if (!tool) {
+      log.warn('unknown tool', { tool: toolName });
+      return errorResult(`Unknown tool: ${toolName}`);
+    }
+
+    const parsed = tool.inputSchema.safeParse(request.params.arguments ?? {});
+    if (!parsed.success) {
+      const issues = parsed.error.issues
+        .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+        .join('; ');
+      log.warn('invalid tool args', { tool: toolName, issues });
+      return errorResult(`Invalid arguments for ${toolName}: ${issues}`);
+    }
+
+    try {
+      return (await tool.handler(parsed.data, ctx)) as CallToolResult;
+    } catch (err) {
+      if (isMcpInboxError(err)) {
+        log.warn('tool returned mcp-inbox error', {
+          tool: toolName,
+          code: err.code,
+          msg: err.userMessage,
+        });
+        return errorResult(err.userMessage);
+      }
+      log.error('tool handler threw', {
+        tool: toolName,
+        msg: err instanceof Error ? err.message : String(err),
+      });
+      return errorResult(`Internal error in ${toolName}. Check server logs for details.`);
+    }
   });
 
   server.onerror = (err: unknown) => {
@@ -51,4 +77,11 @@ export function createMcpServer(): Server {
   };
 
   return server;
+}
+
+function errorResult(text: string): CallToolResult {
+  return {
+    isError: true,
+    content: [{ type: 'text', text }],
+  };
 }

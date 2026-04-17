@@ -2,11 +2,21 @@ import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import * as schema from './schema.js';
 import { CacheError } from '../errors/types.js';
 import { createLogger } from '../utils/logger.js';
+
+/**
+ * Default migrations folder resolved relative to this module.
+ *
+ *  - Dev (tsx / vitest): `src/cache/migrations/`
+ *  - Built binary (dist/index.js): `dist/migrations/` (build script
+ *    copies the migrations there so the shipped tarball is self-contained)
+ */
+export const DEFAULT_MIGRATIONS_FOLDER = fileURLToPath(new URL('./migrations', import.meta.url));
 
 const log = createLogger('mcp-inbox:cache');
 

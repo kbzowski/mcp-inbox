@@ -1,0 +1,37 @@
+import { z } from 'zod';
+import type { ToolDefinition } from './define-tool.js';
+import { listFoldersTool } from './folders/list-folders.js';
+import { listEmailsTool } from './emails/list-emails.js';
+
+/**
+ * Every tool that exists. Adding a tool means importing it here and
+ * appending the reference. The MCP dispatcher iterates this array to
+ * populate ListTools responses and to route CallTool requests - no
+ * other wiring needed.
+ */
+export const tools: readonly ToolDefinition[] = [listFoldersTool, listEmailsTool];
+
+export function findTool(name: string): ToolDefinition | undefined {
+  return tools.find((t) => t.name === name);
+}
+
+/**
+ * Shape each tool for the MCP ListTools response. `inputSchema` is a
+ * JSON Schema derived from the tool's Zod schema - single source of
+ * truth, no hand-written JSON Schema duplication.
+ */
+export interface McpToolEntry {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations: ToolDefinition['annotations'];
+}
+
+export function listToolEntries(): McpToolEntry[] {
+  return tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    inputSchema: z.toJSONSchema(t.inputSchema, { target: 'draft-7' }) as Record<string, unknown>,
+    annotations: t.annotations,
+  }));
+}
