@@ -1,6 +1,6 @@
 {
   "name": "@kbzowski/mcp-inbox",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "MCP server exposing IMAP/SMTP email over a fast local cache. Read, search, compose, and manage email from any IMAP provider with near-instant response times via background sync and IDLE push.",
   "type": "module",
   "main": "./dist/index.js",

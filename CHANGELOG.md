@@ -1,5 +1,16 @@
 # @kbzowski/mcp-inbox
 
+## 0.4.0
+
+### Minor Changes
+
+- Fix cache/sync coherence and align total_count with list filters.
+  - `countEmailsInFolder` now respects the same filters as `listEmailsByFolder` (unseen, since, before). Previously `total_count` ignored filters, so paginated clients using `unseen_only: true` saw inflated totals and empty pages.
+  - Unseen filter moved from JS post-pass into SQL via `json_each`, so paging with `unseen_only` no longer returns empty windows when a chunk of seen messages sits between unseen ones.
+  - New `reconcileUids` step runs after every sync. Messages expunged from the server while the client was offline (no IDLE event) are now detected by diffing cache UIDs against `SEARCH ALL` and removed as ghost entries.
+  - `imap_search_emails` auto-fills the cache for matching UIDs that aren't yet envelope-cached, so `returned` no longer trails `total_matches` silently.
+  - Added lefthook pre-commit (prettier + eslint --fix) and pre-push (typecheck + tests).
+
 ## 0.3.2
 
 ### Patch Changes
