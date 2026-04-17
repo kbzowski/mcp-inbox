@@ -59,6 +59,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
+    "prepare": "lefthook install",
     "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build",
     "release": "changeset publish"
   },
@@ -79,6 +80,7 @@
     "esbuild": "^0.28.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.0.0",
+    "lefthook": "^2.1.6",
     "prettier": "^3.4.0",
     "testcontainers": "^11.14.0",
     "tsx": "^4.19.0",
