@@ -11,7 +11,7 @@
 // Must run before anything that imports node:sqlite (drizzle-orm/node-sqlite
 // calls StatementSync.setReturnArrays which only exists in Node 24+).
 const [nodeMajor] = process.versions.node.split('.').map(Number);
-if ((nodeMajor as number) < 24) {
+if (nodeMajor! < 24) {
   process.stderr.write(
     `mcp-inbox requires Node.js 24 or later (running ${process.version}).\n` +
       `  • npx users: npx is usually fine — check 'node --version' first.\n` +
