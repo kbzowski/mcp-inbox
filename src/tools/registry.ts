@@ -2,6 +2,10 @@ import { z } from 'zod';
 import type { ToolDefinition } from './define-tool.js';
 import { listFoldersTool } from './folders/list-folders.js';
 import { listEmailsTool } from './emails/list-emails.js';
+import { getEmailTool } from './emails/get-email.js';
+import { searchEmailsTool } from './emails/search-emails.js';
+import { listDraftsTool } from './drafts/list-drafts.js';
+import { getDraftTool } from './drafts/get-draft.js';
 
 /**
  * Every tool that exists. Adding a tool means importing it here and
@@ -9,7 +13,14 @@ import { listEmailsTool } from './emails/list-emails.js';
  * populate ListTools responses and to route CallTool requests - no
  * other wiring needed.
  */
-export const tools: readonly ToolDefinition[] = [listFoldersTool, listEmailsTool];
+export const tools: readonly ToolDefinition[] = [
+  listFoldersTool,
+  listEmailsTool,
+  getEmailTool,
+  searchEmailsTool,
+  listDraftsTool,
+  getDraftTool,
+];
 
 export function findTool(name: string): ToolDefinition | undefined {
   return tools.find((t) => t.name === name);

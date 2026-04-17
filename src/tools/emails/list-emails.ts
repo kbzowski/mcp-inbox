@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { defineTool } from '../define-tool.js';
-import { syncFolder } from '../../cache/sync.js';
-import { countEmailsInFolder, getFolder, listEmailsByFolder } from '../../cache/queries.js';
-import type { Email } from '../../cache/schema.js';
 import { formatEmailListMarkdown } from '../../formatters/markdown.js';
+import { projectEmailSummary, readEnvelopes, syncIfStale } from './shared.js';
 
 const Input = z.object({
   folder: z
@@ -47,16 +45,9 @@ export const listEmailsTool = defineTool({
   },
   inputSchema: Input,
   handler: async (args, ctx) => {
-    const cached = getFolder(ctx.db, args.folder);
-    const ageMs = cached ? ctx.now() - cached.lastSyncedAt : Infinity;
-    const stale = ageMs >= args.max_staleness_seconds * 1000;
+    const didSync = await syncIfStale(ctx, args.folder, args.max_staleness_seconds);
 
-    if (stale) {
-      const imap = await ctx.imap.connection();
-      await syncFolder({ db: ctx.db, imap }, args.folder);
-    }
-
-    const rows = listEmailsByFolder(ctx.db, args.folder, {
+    const { rows, total, hasMore, nextOffset } = readEnvelopes(ctx, args.folder, {
       limit: args.limit,
       offset: args.offset,
       unseenOnly: args.unseen_only,
@@ -67,16 +58,14 @@ export const listEmailsTool = defineTool({
         beforeMs: new Date(args.before_date).getTime(),
       }),
     });
-    const total = countEmailsInFolder(ctx.db, args.folder);
-    const hasMore = args.offset + rows.length < total;
 
     const structured = {
       folder: args.folder,
-      emails: rows.map(projectEmail),
+      emails: rows.map(projectEmailSummary),
       total_count: total,
       has_more: hasMore,
-      next_offset: hasMore ? args.offset + args.limit : null,
-      served_from: stale ? 'sync' : 'cache',
+      next_offset: nextOffset,
+      served_from: didSync ? 'sync' : 'cache',
     };
 
     const text =
@@ -90,23 +79,3 @@ export const listEmailsTool = defineTool({
     };
   },
 });
-
-/**
- * Project a cache row to the public tool response shape. Hides the
- * cache internals (envelopeJson blob, modseq, cachedAt timestamps).
- */
-function projectEmail(e: Email) {
-  return {
-    uid: e.uid,
-    folder: e.folder,
-    message_id: e.messageId,
-    subject: e.subject,
-    from: e.fromAddr,
-    to: e.toAddrs,
-    cc: e.ccAddrs,
-    date: e.date !== null ? new Date(e.date).toISOString() : null,
-    flags: e.flags,
-    has_attachments: e.hasAttachments,
-    unseen: !e.flags.includes('\\Seen'),
-  };
-}

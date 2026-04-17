@@ -4,7 +4,14 @@ import { findTool, listToolEntries, tools } from '../../../src/tools/registry.js
 describe('tool registry', () => {
   it('exposes the expected tool set', () => {
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['imap_list_emails', 'imap_list_folders']);
+    expect(names).toEqual([
+      'imap_get_draft',
+      'imap_get_email',
+      'imap_list_drafts',
+      'imap_list_emails',
+      'imap_list_folders',
+      'imap_search_emails',
+    ]);
   });
 
   it('findTool returns the matching definition', () => {
