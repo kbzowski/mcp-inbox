@@ -2,7 +2,14 @@ import type { FetchMessageObject, ImapFlow, MailboxObject, MessageStructureObjec
 import type { CacheDb } from './db';
 import { mapImapError } from '../errors/mapper';
 import { createLogger } from '../utils/logger';
-import { deleteEmailsByFolder, getFolder, upsertEmail, upsertFolder } from './queries';
+import {
+  deleteEmailsByFolder,
+  deleteEmailsByUids,
+  getFolder,
+  listCachedUidsForFolder,
+  upsertEmail,
+  upsertFolder,
+} from './queries';
 import type { EmailInsert } from './schema';
 
 const log = createLogger('mcp-inbox:sync');
@@ -99,17 +106,48 @@ async function runSync(
     cached.highestModseq !== null &&
     cached.highestModseq !== undefined
   ) {
-    if (serverModseq === cached.highestModseq) {
-      return { syncType: 'skipped', fetched: 0 };
-    }
-    const fetched = await fetchAndStoreRange(ctx, folderPath, '1:*', BigInt(cached.highestModseq));
-    return { syncType: 'incremental', fetched };
+    const fetched =
+      serverModseq === cached.highestModseq
+        ? 0
+        : await fetchAndStoreRange(ctx, folderPath, '1:*', BigInt(cached.highestModseq));
+    // Incremental fetch only surfaces messages whose MODSEQ advanced;
+    // messages deleted while we weren't connected don't come back in
+    // that set, so we reconcile UIDs against the server to drop ghosts.
+    await reconcileUids(ctx, folderPath);
+    return { syncType: serverModseq === cached.highestModseq ? 'skipped' : 'incremental', fetched };
   }
 
-  // No CONDSTORE - fall back to full fetch. A UID-diff fallback is
-  // tracked for a later iteration (see IMPROVEMENT-PLAN notes).
+  // No CONDSTORE - fall back to full fetch. The full fetch rewrites every
+  // envelope we care about, but we still need reconciliation to evict
+  // UIDs the server has expunged.
   const fetched = await fetchAndStoreRange(ctx, folderPath, '1:*');
+  await reconcileUids(ctx, folderPath);
   return { syncType: 'full', fetched };
+}
+
+/**
+ * Drop cached emails whose UID is no longer present on the server.
+ *
+ * CONDSTORE `changedSince` fetch won't return messages that have been
+ * expunged, and IDLE EXPUNGE notifications are only seen while we're
+ * connected. So after every sync we ask the server for the UID set and
+ * delete anything we have locally that isn't in it.
+ *
+ * `imap.search({ all: true }, { uid: true })` is a pure server-side
+ * SEARCH - no envelopes fetched, no body traffic, so it stays cheap
+ * even for folders with tens of thousands of messages.
+ */
+async function reconcileUids(ctx: SyncContext, folderPath: string): Promise<void> {
+  const cachedUids = listCachedUidsForFolder(ctx.db, folderPath);
+  if (cachedUids.length === 0) return;
+
+  const result = await ctx.imap.search({ all: true }, { uid: true });
+  const serverUids = new Set(Array.isArray(result) ? result : []);
+  const ghosts = cachedUids.filter((uid) => !serverUids.has(uid));
+  if (ghosts.length === 0) return;
+
+  deleteEmailsByUids(ctx.db, folderPath, ghosts);
+  log.info('reconciled ghost UIDs', { folder: folderPath, removed: ghosts.length });
 }
 
 /**
@@ -148,7 +186,12 @@ async function fetchAndStoreRange(
   return count;
 }
 
-function messageToInsert(
+/**
+ * Map an ImapFlow message into the EmailInsert shape. Exported so tools
+ * that fetch envelopes outside the main sync path (e.g. search auto-fill)
+ * can reuse exactly the same projection.
+ */
+export function messageToInsert(
   folderPath: string,
   msg: FetchMessageObject,
   cachedAt: number,

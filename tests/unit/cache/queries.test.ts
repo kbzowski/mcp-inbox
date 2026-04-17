@@ -9,6 +9,7 @@ import {
   getEmail,
   listEmailsByFolder,
   countEmailsInFolder,
+  listCachedUidsForFolder,
   setEmailFlags,
   deleteEmail,
   deleteEmailsByFolder,
@@ -191,6 +192,45 @@ describe('cache queries', () => {
     it('countEmailsInFolder returns the total', () => {
       expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(3);
       expect(countEmailsInFolder(cache.db, 'Nonexistent')).toBe(0);
+    });
+
+    it('countEmailsInFolder respects the same filters as the list', () => {
+      // Regression: total_count used to ignore unseenOnly, which desynced
+      // it from rows and broke hasMore on paginated clients.
+      expect(countEmailsInFolder(cache.db, 'INBOX', { unseenOnly: true })).toBe(1);
+      expect(countEmailsInFolder(cache.db, 'INBOX', { sinceMs: 2_000 })).toBe(2);
+      expect(countEmailsInFolder(cache.db, 'INBOX', { sinceMs: 2_000, beforeMs: 3_000 })).toBe(1);
+    });
+
+    it('paginating with unseenOnly never skips a matching row', () => {
+      // Seed 10 seen emails sandwiching a single unseen one at offset 5,
+      // then page through with a tiny limit. Before the SQL-side filter,
+      // offset 2 (limit 2) could return 0 rows even though unseen existed.
+      deleteEmailsByFolder(cache.db, 'INBOX');
+      for (let i = 0; i < 10; i++) {
+        upsertEmail(
+          cache.db,
+          buildEmail({
+            uid: 100 + i,
+            subject: `s${i}`,
+            date: 10_000 + i,
+            flags: i === 5 ? [] : ['\\Seen'],
+          }),
+        );
+      }
+      expect(countEmailsInFolder(cache.db, 'INBOX', { unseenOnly: true })).toBe(1);
+      const page = listEmailsByFolder(cache.db, 'INBOX', {
+        unseenOnly: true,
+        limit: 2,
+        offset: 0,
+      });
+      expect(page).toHaveLength(1);
+      expect(page[0]?.subject).toBe('s5');
+    });
+
+    it('listCachedUidsForFolder returns every cached UID in the folder', () => {
+      expect(listCachedUidsForFolder(cache.db, 'INBOX').sort((a, b) => a - b)).toEqual([1, 2, 3]);
+      expect(listCachedUidsForFolder(cache.db, 'Nonexistent')).toEqual([]);
     });
   });
 

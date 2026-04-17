@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { defineTool } from '../define-tool';
 import { mapImapError } from '../../errors/mapper';
 import { buildImapSearch, type EmailSearchCriteria } from '../../imap/search';
-import { getEmail } from '../../cache/queries';
+import { getEmail, upsertEmail } from '../../cache/queries';
+import { messageToInsert } from '../../cache/sync';
 import type { Email } from '../../cache/schema';
 import { formatEmailListMarkdown } from '../../formatters/markdown';
 import { projectEmailSummary, syncIfStale } from './shared';
@@ -115,17 +116,36 @@ export const searchEmailsTool = defineTool({
     let matchingUids: number[];
     const imap = await ctx.imap.connection();
     const lock = await imap.getMailboxLock(args.folder);
+    let topUids: number[];
     try {
       const result = await imap.search(criteria, { uid: true });
       matchingUids = Array.isArray(result) ? result : [];
+
+      // IMAP returns UIDs ascending; newest first = reverse, then trim.
+      topUids = [...matchingUids].reverse().slice(0, args.limit);
+
+      // Auto-fill cache: any UID in the server result that we don't have
+      // locally gets its envelope fetched now. Prevents the silent-drop
+      // where `returned` would be smaller than `total_matches` just
+      // because the cache hadn't seen those UIDs yet.
+      const missingUids = topUids.filter((uid) => getEmail(ctx.db, args.folder, uid) === undefined);
+      if (missingUids.length > 0) {
+        const cachedAt = ctx.now();
+        for await (const msg of imap.fetch(
+          missingUids,
+          { envelope: true, flags: true, internalDate: true, bodyStructure: true },
+          { uid: true },
+        )) {
+          const insert = messageToInsert(args.folder, msg, cachedAt);
+          if (insert) upsertEmail(ctx.db, insert);
+        }
+      }
     } catch (err) {
       lock.release();
       throw mapImapError(err);
     }
     lock.release();
 
-    // IMAP returns UIDs ascending; newest first = reverse, then trim.
-    const topUids = [...matchingUids].reverse().slice(0, args.limit);
     const rows: Email[] = [];
     for (const uid of topUids) {
       const row = getEmail(ctx.db, args.folder, uid);

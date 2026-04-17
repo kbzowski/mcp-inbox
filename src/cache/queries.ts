@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import type { CacheDb } from './db';
 import {
   folders,
@@ -91,6 +91,27 @@ export interface ListEmailsOptions {
 }
 
 /**
+ * Build the WHERE conditions shared by listEmailsByFolder and
+ * countEmailsInFolder. Keeping them aligned is critical: if `total_count`
+ * is computed without the same filters as the row list, paginated clients
+ * see ever-growing `has_more` chains that return empty pages.
+ *
+ * The unseen filter uses SQLite's json_each() over the JSON-encoded
+ * `flags` column. node:sqlite ships json1 by default.
+ */
+function buildFolderConditions(folder: string, opts: ListEmailsOptions): SQL[] {
+  const conditions: SQL[] = [eq(emails.folder, folder)];
+  if (opts.sinceMs !== undefined) conditions.push(gte(emails.date, opts.sinceMs));
+  if (opts.beforeMs !== undefined) conditions.push(lt(emails.date, opts.beforeMs));
+  if (opts.unseenOnly) {
+    conditions.push(
+      sql`NOT EXISTS (SELECT 1 FROM json_each(${emails.flags}) WHERE value = ${'\\Seen'})`,
+    );
+  }
+  return conditions;
+}
+
+/**
  * List cached emails in a folder, newest first by IMAP INTERNALDATE.
  * Messages with a null date sort last - preserves determinism when a
  * provider returns envelope-only rows without dates.
@@ -100,11 +121,8 @@ export function listEmailsByFolder(
   folder: string,
   opts: ListEmailsOptions = {},
 ): Email[] {
-  const conditions = [eq(emails.folder, folder)];
-  if (opts.sinceMs !== undefined) conditions.push(gte(emails.date, opts.sinceMs));
-  if (opts.beforeMs !== undefined) conditions.push(lt(emails.date, opts.beforeMs));
-
-  let rows = db
+  const conditions = buildFolderConditions(folder, opts);
+  return db
     .select()
     .from(emails)
     .where(and(...conditions))
@@ -112,22 +130,35 @@ export function listEmailsByFolder(
     .limit(opts.limit ?? 100)
     .offset(opts.offset ?? 0)
     .all();
-
-  // Unseen filter is JSON-encoded in the flags column - do it in JS rather
-  // than SQL json_extract to keep the query portable across drivers.
-  if (opts.unseenOnly) {
-    rows = rows.filter((r) => !r.flags.includes('\\Seen'));
-  }
-  return rows;
 }
 
-export function countEmailsInFolder(db: CacheDb, folder: string): number {
+export function countEmailsInFolder(
+  db: CacheDb,
+  folder: string,
+  opts: ListEmailsOptions = {},
+): number {
+  const conditions = buildFolderConditions(folder, opts);
   const row = db
     .select({ n: sql<number>`count(*)` })
     .from(emails)
-    .where(eq(emails.folder, folder))
+    .where(and(...conditions))
     .get();
   return row?.n ?? 0;
+}
+
+/**
+ * Return every cached UID for a folder. Used by the sync reconciliation
+ * path to detect ghost entries (UIDs we have locally that are gone on
+ * the server - e.g. messages deleted by another client while IDLE was
+ * disconnected).
+ */
+export function listCachedUidsForFolder(db: CacheDb, folder: string): number[] {
+  const rows = db
+    .select({ uid: emails.uid })
+    .from(emails)
+    .where(eq(emails.folder, folder))
+    .all();
+  return rows.map((r) => r.uid);
 }
 
 /**

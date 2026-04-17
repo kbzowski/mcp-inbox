@@ -45,7 +45,9 @@ export function readEnvelopes(
   opts: ListEmailsOptions,
 ): { rows: Email[]; total: number; hasMore: boolean; nextOffset: number | null } {
   const rows = listEmailsByFolder(ctx.db, folder, opts);
-  const total = countEmailsInFolder(ctx.db, folder);
+  // Count must apply the SAME filters as the list, otherwise paginated
+  // clients walk off into empty pages because `total` overcounts.
+  const total = countEmailsInFolder(ctx.db, folder, opts);
   const offset = opts.offset ?? 0;
   const limit = opts.limit ?? 100;
   const hasMore = offset + rows.length < total;
