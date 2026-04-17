@@ -113,12 +113,7 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   // Duck-type: some IMAP/SMTP drivers throw plain `{ message, code }` objects.
-  if (
-    err &&
-    typeof err === 'object' &&
-    'message' in err &&
-    typeof err.message === 'string'
-  ) {
+  if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
     return err.message;
   }
   return String(err);

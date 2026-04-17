@@ -4,9 +4,12 @@ import { join } from 'node:path';
 
 const BooleanString = z.enum(['true', 'false']).transform((v) => v === 'true');
 
-const CsvList = z
-  .string()
-  .transform((s) => s.split(',').map((v) => v.trim()).filter((v) => v.length > 0));
+const CsvList = z.string().transform((s) =>
+  s
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0),
+);
 
 const EnvSchema = z
   .object({
