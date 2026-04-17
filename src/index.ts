@@ -110,7 +110,19 @@ try {
   await server.connect(transport);
   rootLogger.info('mcp-inbox ready');
 } catch (err) {
-  const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
-  process.stderr.write(`fatal: ${message}\n`);
+  // Print the top-level message + stack, then walk and print the `cause`
+  // chain. The immediate message is the actionable hint we produce (e.g.
+  // "better-sqlite3 native binding failed to load"); the cause chain
+  // shows the raw driver error underneath it so debugging is possible
+  // without having to re-run under DEBUG=mcp-inbox:*.
+  const top = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  process.stderr.write(`fatal: ${top}\n`);
+  let cause: unknown = err instanceof Error ? err.cause : undefined;
+  let depth = 0;
+  while (cause instanceof Error && depth < 5) {
+    process.stderr.write(`caused by: ${cause.stack ?? cause.message}\n`);
+    cause = cause.cause;
+    depth++;
+  }
   process.exit(1);
 }

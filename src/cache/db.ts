@@ -49,18 +49,18 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
   if (path !== ':memory:') {
     // Ensure the parent directory exists before SQLite tries to create the
     // file. mkdir is a no-op if the directory already exists.
-    mkdirSync(dirname(path), { recursive: true });
+    try {
+      mkdirSync(dirname(path), { recursive: true });
+    } catch (err) {
+      throw new CacheError('CACHE_IO_FAILED', diagnoseOpenError(path, err), err);
+    }
   }
 
   let sqlite: DatabaseType;
   try {
     sqlite = new Database(path);
   } catch (err) {
-    throw new CacheError(
-      'CACHE_IO_FAILED',
-      `Could not open cache database at ${path}. Check IMAP_CACHE_DIR permissions.`,
-      err,
-    );
+    throw new CacheError('CACHE_IO_FAILED', diagnoseOpenError(path, err), err);
   }
 
   // Durability + concurrency pragmas. WAL allows concurrent reads during
@@ -97,4 +97,52 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
       }
     },
   };
+}
+
+/**
+ * Turn whatever better-sqlite3 threw into an actionable message. The old
+ * version of this code always said "Check IMAP_CACHE_DIR permissions",
+ * which is almost never the real cause - the common ones are:
+ *  - the native binding failed to load (bad prebuild / wrong Node ABI)
+ *  - the db file is locked by another mcp-inbox instance
+ *  - actual permission denied (rare, but covered)
+ *
+ * Exported for unit tests.
+ */
+export function diagnoseOpenError(path: string, err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const code =
+    err && typeof err === 'object' && 'code' in err
+      ? String((err as { code: unknown }).code)
+      : undefined;
+
+  let hint: string;
+  if (
+    /cannot find module|invalid elf|was compiled against|node_modules[\\/]better-sqlite3/i.test(msg)
+  ) {
+    hint =
+      'The better-sqlite3 native binding failed to load. Try:\n' +
+      '  npm rebuild better-sqlite3\n' +
+      'or reinstall: npm install -g @kbzowski/mcp-inbox --force';
+  } else if (
+    code === 'EACCES' ||
+    code === 'EPERM' ||
+    /permission denied|operation not permitted/i.test(msg)
+  ) {
+    hint = 'Permission denied. Check that IMAP_CACHE_DIR is writable by the current user.';
+  } else if (code === 'EBUSY' || /database is locked|SQLITE_BUSY|locked/i.test(msg)) {
+    hint =
+      'The cache file is locked, probably by another mcp-inbox instance ' +
+      '(Claude Desktop + Claude Code both launching the server, for example). ' +
+      'Close the other client or point this one at a different IMAP_CACHE_DIR.';
+  } else if (code === 'ENOENT') {
+    hint =
+      'Path not found. IMAP_CACHE_DIR or one of its parents may not exist and could not be created.';
+  } else if (/disk i\/o|disk full|ENOSPC/i.test(msg) || code === 'ENOSPC') {
+    hint = 'Disk I/O error (out of space, or the volume was disconnected).';
+  } else {
+    hint = `Underlying error: ${msg}`;
+  }
+
+  return `Could not open cache database at ${path}. ${hint}`;
 }
