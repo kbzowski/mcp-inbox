@@ -43,9 +43,8 @@ jobs:
       - run: npm run test
       - run: npm run build
 
+      # No NODE_AUTH_TOKEN: this repo+workflow is registered as a Trusted
+      # Publisher on npmjs.com, so npm authenticates via the OIDC token
+      # GitHub issues under the id-token: write permission above. No
+      # long-lived secret to rotate or leak.
       - run: npm publish --provenance --access public
-        env:
-          # NPM_TOKEN is an npm Automation token with publish rights for
-          # @kbzowski/*. Created at https://www.npmjs.com/settings/~/tokens
-          # and stored as a repo secret named NPM_TOKEN.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
