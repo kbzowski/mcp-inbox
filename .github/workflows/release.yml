@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  # Publish when a version tag is pushed (e.g. v0.1.0, v0.2.3).
+  # Use:  git tag v0.1.0 && git push origin v0.1.0
+  push:
+    tags:
+      - 'v*'
+  # Also allow manual runs from the Actions tab for one-off republishes.
+  workflow_dispatch:
+
+# `id-token: write` is what unlocks npm provenance attestations. npm's
+# publish command asks GitHub for an OIDC token and hands it to the
+# registry as proof that this tarball was built from this commit by
+# this workflow. Without this permission, --provenance fails exactly
+# the way a local publish does ("provider: null").
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Mirror the local `prepublishOnly` chain explicitly so a failing
+      # step shows up as a named CI step rather than inside npm publish.
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test
+      - run: npm run build
+
+      - run: npm publish --provenance --access public
+        env:
+          # NPM_TOKEN is an npm Automation token with publish rights for
+          # @kbzowski/*. Created at https://www.npmjs.com/settings/~/tokens
+          # and stored as a repo secret named NPM_TOKEN.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
