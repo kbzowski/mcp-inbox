@@ -32,6 +32,14 @@
   ],
   "author": "Krzysztof Bzowski",
   "license": "MIT",
+  "homepage": "https://github.com/kbzowski/mcp-inbox#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kbzowski/mcp-inbox.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kbzowski/mcp-inbox/issues"
+  },
   "engines": {
     "node": ">=24.0.0"
   },
