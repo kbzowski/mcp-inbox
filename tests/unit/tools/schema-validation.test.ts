@@ -3,6 +3,9 @@ import { getEmailTool } from '../../../src/tools/emails/get-email.js';
 import { searchEmailsTool } from '../../../src/tools/emails/search-emails.js';
 import { getDraftTool } from '../../../src/tools/drafts/get-draft.js';
 import { listEmailsTool } from '../../../src/tools/emails/list-emails.js';
+import { markReadTool, markUnreadTool } from '../../../src/tools/emails/mark-read.js';
+import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder.js';
+import { deleteEmailTool } from '../../../src/tools/emails/delete-email.js';
 
 /**
  * Tool handlers are integration-heavy, but their Zod schemas are pure
@@ -79,5 +82,63 @@ describe('imap_list_emails input schema', () => {
   it('caps limit at 100', () => {
     const r = listEmailsTool.inputSchema.safeParse({ limit: 500 });
     expect(r.success).toBe(false);
+  });
+});
+
+describe('mark-read / mark-unread input schemas', () => {
+  it('both require folder + uid', () => {
+    for (const tool of [markReadTool, markUnreadTool]) {
+      expect(tool.inputSchema.safeParse({ uid: 1 }).success).toBe(false);
+      expect(tool.inputSchema.safeParse({ folder: 'INBOX' }).success).toBe(false);
+      expect(tool.inputSchema.safeParse({ folder: 'INBOX', uid: 1 }).success).toBe(true);
+    }
+  });
+
+  it('both carry idempotent + non-destructive annotations', () => {
+    for (const tool of [markReadTool, markUnreadTool]) {
+      expect(tool.annotations.idempotentHint).toBe(true);
+      expect(tool.annotations.destructiveHint).toBe(false);
+    }
+  });
+});
+
+describe('imap_move_to_folder input schema', () => {
+  it('requires destination', () => {
+    const r = moveToFolderTool.inputSchema.safeParse({ folder: 'INBOX', uid: 1 });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepts valid move args', () => {
+    const r = moveToFolderTool.inputSchema.safeParse({
+      folder: 'INBOX',
+      uid: 42,
+      destination: 'Archive',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('carries destructive annotation', () => {
+    expect(moveToFolderTool.annotations.destructiveHint).toBe(true);
+  });
+});
+
+describe('imap_delete_email input schema', () => {
+  it('defaults hard_delete to false (Trash behavior)', () => {
+    const r = deleteEmailTool.inputSchema.safeParse({ folder: 'INBOX', uid: 1 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hard_delete).toBe(false);
+  });
+
+  it('accepts hard_delete=true', () => {
+    const r = deleteEmailTool.inputSchema.safeParse({
+      folder: 'INBOX',
+      uid: 1,
+      hard_delete: true,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('is marked destructive', () => {
+    expect(deleteEmailTool.annotations.destructiveHint).toBe(true);
   });
 });

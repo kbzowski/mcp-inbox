@@ -4,6 +4,9 @@ import { listFoldersTool } from './folders/list-folders.js';
 import { listEmailsTool } from './emails/list-emails.js';
 import { getEmailTool } from './emails/get-email.js';
 import { searchEmailsTool } from './emails/search-emails.js';
+import { markReadTool, markUnreadTool } from './emails/mark-read.js';
+import { moveToFolderTool } from './emails/move-to-folder.js';
+import { deleteEmailTool } from './emails/delete-email.js';
 import { listDraftsTool } from './drafts/list-drafts.js';
 import { getDraftTool } from './drafts/get-draft.js';
 
@@ -14,12 +17,18 @@ import { getDraftTool } from './drafts/get-draft.js';
  * other wiring needed.
  */
 export const tools: readonly ToolDefinition[] = [
+  // Read
   listFoldersTool,
   listEmailsTool,
   getEmailTool,
   searchEmailsTool,
   listDraftsTool,
   getDraftTool,
+  // Write (flag + move + delete)
+  markReadTool,
+  markUnreadTool,
+  moveToFolderTool,
+  deleteEmailTool,
 ];
 
 export function findTool(name: string): ToolDefinition | undefined {
