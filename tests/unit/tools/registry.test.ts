@@ -8,6 +8,7 @@ describe('tool registry', () => {
       'imap_create_draft',
       'imap_delete_email',
       'imap_forward',
+      'imap_get_attachment',
       'imap_get_draft',
       'imap_get_email',
       'imap_list_drafts',

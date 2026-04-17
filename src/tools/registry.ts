@@ -15,6 +15,7 @@ import { sendEmailTool } from './send/send-email.js';
 import { sendDraftTool } from './send/send-draft.js';
 import { replyTool } from './send/reply.js';
 import { forwardTool } from './send/forward.js';
+import { getAttachmentTool } from './attachments/get-attachment.js';
 
 /**
  * Every tool that exists. Adding a tool means importing it here and
@@ -43,6 +44,8 @@ export const tools: readonly ToolDefinition[] = [
   sendDraftTool,
   replyTool,
   forwardTool,
+  // Attachments
+  getAttachmentTool,
 ];
 
 export function findTool(name: string): ToolDefinition | undefined {
