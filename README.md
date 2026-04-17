@@ -6,8 +6,6 @@ Works with any IMAP/SMTP provider: Gmail, Outlook, Fastmail, iCloud, Proton Mail
 
 **On attachments:** `imap_get_email` surfaces attachment metadata (filename, content type, size) by default - enough for the agent to describe what's attached without any download. When the agent genuinely needs to read content inside an attachment (search a PDF, extract a table from a CSV), `imap_get_attachment` fetches the bytes inline as base64 for one response. Nothing is cached on disk; re-requesting the same attachment refetches from the server.
 
-**Status:** 0.1.0, early. See `CLAUDE.md` for architecture notes.
-
 ---
 
 ## Requirements
