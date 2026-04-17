@@ -6,6 +6,8 @@ import { listEmailsTool } from '../../../src/tools/emails/list-emails.js';
 import { markReadTool, markUnreadTool } from '../../../src/tools/emails/mark-read.js';
 import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder.js';
 import { deleteEmailTool } from '../../../src/tools/emails/delete-email.js';
+import { createDraftTool } from '../../../src/tools/drafts/create-draft.js';
+import { updateDraftTool } from '../../../src/tools/drafts/update-draft.js';
 
 /**
  * Tool handlers are integration-heavy, but their Zod schemas are pure
@@ -140,5 +142,37 @@ describe('imap_delete_email input schema', () => {
 
   it('is marked destructive', () => {
     expect(deleteEmailTool.annotations.destructiveHint).toBe(true);
+  });
+});
+
+describe('imap_create_draft input schema', () => {
+  it('requires to and subject', () => {
+    expect(createDraftTool.inputSchema.safeParse({}).success).toBe(false);
+    expect(createDraftTool.inputSchema.safeParse({ to: 'x@y' }).success).toBe(false);
+    expect(createDraftTool.inputSchema.safeParse({ to: 'x@y', subject: 'hi' }).success).toBe(true);
+  });
+
+  it('accepts single or array recipients', () => {
+    expect(createDraftTool.inputSchema.safeParse({ to: 'a@b', subject: 's' }).success).toBe(true);
+    expect(
+      createDraftTool.inputSchema.safeParse({ to: ['a@b', 'c@d'], subject: 's' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects empty-array recipients', () => {
+    expect(createDraftTool.inputSchema.safeParse({ to: [], subject: 's' }).success).toBe(false);
+  });
+});
+
+describe('imap_update_draft input schema', () => {
+  it('requires uid + to + subject', () => {
+    const missingUid = updateDraftTool.inputSchema.safeParse({ to: 'x@y', subject: 's' });
+    expect(missingUid.success).toBe(false);
+    const complete = updateDraftTool.inputSchema.safeParse({
+      uid: 1,
+      to: 'x@y',
+      subject: 's',
+    });
+    expect(complete.success).toBe(true);
   });
 });

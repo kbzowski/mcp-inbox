@@ -9,6 +9,8 @@ import { moveToFolderTool } from './emails/move-to-folder.js';
 import { deleteEmailTool } from './emails/delete-email.js';
 import { listDraftsTool } from './drafts/list-drafts.js';
 import { getDraftTool } from './drafts/get-draft.js';
+import { createDraftTool } from './drafts/create-draft.js';
+import { updateDraftTool } from './drafts/update-draft.js';
 
 /**
  * Every tool that exists. Adding a tool means importing it here and
@@ -29,6 +31,9 @@ export const tools: readonly ToolDefinition[] = [
   markUnreadTool,
   moveToFolderTool,
   deleteEmailTool,
+  // Drafts (compose)
+  createDraftTool,
+  updateDraftTool,
 ];
 
 export function findTool(name: string): ToolDefinition | undefined {

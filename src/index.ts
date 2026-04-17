@@ -37,6 +37,9 @@ try {
     db: cache.db,
     imap: imapClient,
     cacheConfig: config.cache,
+    defaults: {
+      fromAddress: config.imap.user,
+    },
     now: () => Date.now(),
   };
 

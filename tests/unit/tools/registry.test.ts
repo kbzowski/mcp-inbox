@@ -5,6 +5,7 @@ describe('tool registry', () => {
   it('exposes the expected tool set', () => {
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'imap_create_draft',
       'imap_delete_email',
       'imap_get_draft',
       'imap_get_email',
@@ -15,6 +16,7 @@ describe('tool registry', () => {
       'imap_mark_unread',
       'imap_move_to_folder',
       'imap_search_emails',
+      'imap_update_draft',
     ]);
   });
 

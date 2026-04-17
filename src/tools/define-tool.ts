@@ -13,6 +13,10 @@ export interface ToolContext {
   db: CacheDb;
   imap: ImapClient;
   cacheConfig: AppConfig['cache'];
+  /** Default sender + smtp config for tools that compose messages. */
+  defaults: {
+    fromAddress: string;
+  };
   /** Injectable clock so tests can pin the time. */
   now: () => number;
 }
