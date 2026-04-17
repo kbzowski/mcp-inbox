@@ -112,7 +112,11 @@ export function diagnoseOpenError(path: string, err: unknown): string {
       : undefined;
 
   let hint: string;
-  if (code === 'EACCES' || code === 'EPERM' || /permission denied|operation not permitted/i.test(msg)) {
+  if (
+    code === 'EACCES' ||
+    code === 'EPERM' ||
+    /permission denied|operation not permitted/i.test(msg)
+  ) {
     hint = 'Permission denied. Check that IMAP_CACHE_DIR is writable by the current user.';
   } else if (code === 'EBUSY' || /database is locked|SQLITE_BUSY|locked/i.test(msg)) {
     hint =
