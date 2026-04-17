@@ -14,10 +14,7 @@ const [nodeMajor] = process.versions.node.split('.').map(Number);
 if (nodeMajor! < 24) {
   process.stderr.write(
     `mcp-inbox requires Node.js 24 or later (running ${process.version}).\n` +
-      `  • npx users: npx is usually fine — check 'node --version' first.\n` +
-      `  • proto users: run 'proto pin node 24 --global' once to set the global default.\n` +
-      `  • pnpm dlx / pnpx: if proto shims resolve to an older version outside your\n` +
-      `    project directory, set a global default or use 'npx -y @kbzowski/mcp-inbox'.\n`,
+      `Upgrade: https://nodejs.org/en/download\n`,
   );
   process.exit(1);
 }

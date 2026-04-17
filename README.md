@@ -329,24 +329,7 @@ The first `npx -y @kbzowski/mcp-inbox` invocation downloads the package. Subsequ
 
 ### "mcp-inbox requires Node.js 24 or later"
 
-The server requires Node 24 because `node:sqlite` (the built-in SQLite module it uses) gained its full API in Node 24. If you see this message the binary ran under an older Node.
-
-**proto users** — proto resolves the Node version from the nearest `.prototools` file. When a client (Claude Desktop, Cursor, etc.) runs `npx @kbzowski/mcp-inbox` or `pnpx @kbzowski/mcp-inbox`, the working directory is the client's process directory, not your project. If you have no global default set, proto may fall back to an older version. Fix:
-
-```bash
-# one-time — sets Node 24 as the global proto default
-proto pin node 24 --global
-```
-
-Or add a line to `~/.prototools`:
-
-```toml
-node = "24"
-```
-
-After that, `node --version` in any directory should print `v24.x`.
-
-**nvm / fnm / volta users** — same idea: make sure the global default is Node 24 (`nvm alias default 24`, `fnm default 24`, or Volta's `package.json` `volta.node` field).
+The server requires Node 24 because `node:sqlite` (the built-in SQLite module it uses) gained its full API in Node 24. Run `node --version` to check which version your MCP client is using, and upgrade to Node 24 LTS if needed: https://nodejs.org/en/download
 
 ### Verify the connection manually
 

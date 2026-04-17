@@ -1,5 +1,11 @@
 # @kbzowski/mcp-inbox
 
+## 0.3.2
+
+### Patch Changes
+
+- Simplify the Node 24 version-guard message — no tool-specific references, just the version requirement and a link to nodejs.org.
+
 ## 0.3.1
 
 ### Patch Changes
