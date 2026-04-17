@@ -1,0 +1,81 @@
+{
+  "name": "mcp-inbox",
+  "version": "0.1.0",
+  "description": "MCP server exposing IMAP/SMTP email over a fast local cache. Read, search, compose, and manage email from any IMAP provider with near-instant response times via background sync and IDLE push.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mcp-inbox": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude",
+    "anthropic",
+    "email",
+    "imap",
+    "smtp",
+    "mail",
+    "inbox",
+    "gmail",
+    "outlook",
+    "fastmail",
+    "ai-tools",
+    "llm-tools"
+  ],
+  "author": "Krzysztof Bzowski",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "drizzle-kit generate",
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "release": "changeset publish"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "drizzle-orm": "^0.45.2",
+    "imapflow": "^1.0.180",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^8.0.5",
+    "zod": "^4.0.0",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.10",
+    "@types/mailparser": "^3.4.5",
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^6.4.17",
+    "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.0",
+    "prettier": "^3.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.0.0"
+  }
+}
