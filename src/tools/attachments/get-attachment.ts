@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { Readable } from 'node:stream';
 import type { MessageStructureObject } from 'imapflow';
+import { simpleParser } from 'mailparser';
 import { defineTool } from '../define-tool';
 import { ImapError, CacheError } from '../../errors/types';
 import { mapImapError } from '../../errors/mapper';
@@ -46,10 +46,12 @@ const Input = z
  *    cost is one IMAP round-trip per access, which is fine for the
  *    actual use case (agent processes the attachment once, done).
  *
- * The typical workflow: agent wants to search inside an attachment
- * (find a number in a PDF receipt, extract table data from a CSV,
- * read through an EML forward), calls this tool, feeds the bytes
- * into whatever processor it has, produces an answer, moves on.
+ * Implementation note: we fetch the whole raw source and let mailparser
+ * walk the MIME tree. Part-by-part IMAP fetches (BODY[n]) sound cheaper
+ * but are flakier in practice - different servers number multipart
+ * containers differently, and some (including GreenMail) return empty
+ * downloads for certain part shapes. One round-trip + trusted parser
+ * beats two round-trips and server-specific edge cases.
  */
 export const getAttachmentTool = defineTool({
   name: 'imap_get_attachment',
@@ -66,38 +68,54 @@ export const getAttachmentTool = defineTool({
     const imap = await ctx.imap.connection();
     const lock = await imap.getMailboxLock(args.folder);
 
-    // Fetch body structure to locate the part.
+    let source: Buffer;
     let structure: MessageStructureObject | undefined;
     try {
-      const msg = await imap.fetchOne(String(args.uid), { bodyStructure: true }, { uid: true });
-      if (!msg) {
+      const msg = await imap.fetchOne(
+        String(args.uid),
+        { source: true, bodyStructure: true },
+        { uid: true },
+      );
+      if (!msg || msg.source === undefined) {
         throw new ImapError(
           'IMAP_MESSAGE_NOT_FOUND',
           `No message with UID ${String(args.uid)} in ${args.folder}.`,
         );
       }
+      source = msg.source;
       structure = msg.bodyStructure;
     } catch (err) {
       lock.release();
       if (err instanceof ImapError) throw err;
       throw mapImapError(err);
     }
+    lock.release();
 
-    if (!structure) {
-      lock.release();
-      throw new ImapError(
-        'IMAP_UNKNOWN',
-        `Server returned no body structure for UID ${String(args.uid)}.`,
-      );
+    // Early reject: if bodyStructure reports a size well over the cap,
+    // don't bother parsing. The 1.5x fudge factor is because transfer
+    // encoding overhead (base64 inflates ~33%) isn't consistently
+    // included in the server-reported size.
+    const capBytes = args.max_inline_mb * 1024 * 1024;
+    if (structure) {
+      const selector: { filename?: string; part_id?: string } = {
+        ...(args.filename !== undefined && { filename: args.filename }),
+        ...(args.part_id !== undefined && { part_id: args.part_id }),
+      };
+      const structMatch = findAttachmentPart(structure, selector);
+      if (structMatch?.size !== undefined && structMatch.size > capBytes * 1.5) {
+        throw new CacheError(
+          'ATTACHMENT_TOO_LARGE',
+          `Attachment "${structMatch.filename ?? structMatch.partId}" is ~${String(structMatch.size)} bytes; max_inline_mb=${String(args.max_inline_mb)} allows up to ${String(capBytes)} bytes. Raise max_inline_mb (up to 50) or open in your mail client.`,
+        );
+      }
     }
 
-    const selector: { filename?: string; part_id?: string } = {
+    const parsed = await simpleParser(source);
+    const attachment = pickAttachment(parsed.attachments ?? [], {
       ...(args.filename !== undefined && { filename: args.filename }),
-      ...(args.part_id !== undefined && { part_id: args.part_id }),
-    };
-    const match = findAttachmentPart(structure, selector);
-    if (!match) {
-      lock.release();
+      ...(args.part_id !== undefined && { partId: args.part_id }),
+    });
+    if (!attachment) {
       throw new ImapError(
         'ATTACHMENT_NOT_FOUND',
         args.part_id !== undefined
@@ -106,39 +124,17 @@ export const getAttachmentTool = defineTool({
       );
     }
 
-    // Early-reject oversized attachments based on the body-structure size
-    // (which is an expected-size, usually accurate within encoding overhead).
-    // This catches the obvious "don't even fetch this" case. We also enforce
-    // the cap against actual bytes after download - see below.
-    const capBytes = args.max_inline_mb * 1024 * 1024;
-    if (match.size !== undefined && match.size > capBytes * 1.5) {
-      lock.release();
-      throw new CacheError(
-        'ATTACHMENT_TOO_LARGE',
-        `Attachment "${match.filename ?? match.partId}" is ~${String(match.size)} bytes; max_inline_mb=${String(args.max_inline_mb)} allows up to ${String(capBytes)} bytes. Lower the attachment size, raise max_inline_mb (up to 50), or open the message in your mail client.`,
-      );
-    }
-
-    // Download the part.
-    let bytes: Buffer;
-    try {
-      const dl = await imap.download(String(args.uid), match.partId, { uid: true });
-      bytes = await streamToBuffer(dl.content);
-    } catch (err) {
-      lock.release();
-      throw mapImapError(err);
-    }
-    lock.release();
-
+    const bytes = attachment.content;
     if (bytes.length > capBytes) {
       throw new CacheError(
         'ATTACHMENT_TOO_LARGE',
-        `Attachment "${match.filename ?? match.partId}" is ${String(bytes.length)} bytes after download; max_inline_mb=${String(args.max_inline_mb)} allows up to ${String(capBytes)} bytes.`,
+        `Attachment "${attachment.filename ?? 'unnamed'}" is ${String(bytes.length)} bytes after decode; max_inline_mb=${String(args.max_inline_mb)} allows up to ${String(capBytes)} bytes.`,
       );
     }
 
-    const filename = match.filename ?? args.filename ?? `part-${match.partId}.bin`;
-    const contentType = match.contentType ?? 'application/octet-stream';
+    const filename = attachment.filename ?? args.filename ?? 'attachment.bin';
+    const contentType = attachment.contentType ?? 'application/octet-stream';
+    const partId = attachment.partId ?? args.part_id ?? '?';
 
     return {
       content: [
@@ -150,7 +146,7 @@ export const getAttachmentTool = defineTool({
       structuredContent: {
         folder: args.folder,
         uid: args.uid,
-        part_id: match.partId,
+        part_id: partId,
         filename,
         content_type: contentType,
         size_bytes: bytes.length,
@@ -169,11 +165,8 @@ interface AttachmentMatch {
 
 /**
  * Walk a MessageStructureObject tree to find the first part matching
- * the caller's selector. Covers:
- *  - explicit `Content-Disposition: attachment` dispositions
- *  - `dispositionParameters.filename`
- *  - the legacy `Content-Type` `name=` parameter (some older clients
- *    emit that instead of disposition parameters)
+ * the caller's selector. Used to decide whether to even bother with
+ * the download, based on the server-reported size.
  */
 export function findAttachmentPart(
   structure: MessageStructureObject,
@@ -219,10 +212,28 @@ export function findAttachmentPart(
   return null;
 }
 
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+interface MailparserAttachmentLike {
+  filename?: string | undefined;
+  contentType?: string | undefined;
+  content: Buffer;
+  partId?: string | undefined;
+}
+
+/**
+ * Select one of mailparser's decoded attachments by filename or partId.
+ * First match wins when multiple attachments share a filename.
+ */
+function pickAttachment(
+  attachments: MailparserAttachmentLike[],
+  selector: { filename?: string; partId?: string },
+): MailparserAttachmentLike | null {
+  if (selector.partId !== undefined) {
+    const byPart = attachments.find((a) => a.partId === selector.partId);
+    if (byPart) return byPart;
   }
-  return Buffer.concat(chunks);
+  if (selector.filename !== undefined) {
+    const byFilename = attachments.find((a) => a.filename === selector.filename);
+    if (byFilename) return byFilename;
+  }
+  return null;
 }

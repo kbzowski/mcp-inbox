@@ -11,14 +11,14 @@ export default defineConfig({
     include: ['tests/integration/**/*.test.ts'],
     environment: 'node',
     globals: false,
-    testTimeout: 30_000,
-    hookTimeout: 60_000,
     pool: 'forks',
     poolOptions: {
       forks: { singleFork: true },
     },
+    // Container startup dominates total runtime - give it room.
+    testTimeout: 30_000,
+    hookTimeout: 120_000,
     passWithNoTests: true,
-    // globalSetup: ['./tests/integration/setup/greenmail.ts'],
-    // ^ re-enabled in Phase 3 when the GreenMail bootstrap lands.
+    globalSetup: ['./tests/integration/setup/greenmail.ts'],
   },
 });
