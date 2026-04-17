@@ -5,7 +5,8 @@
  * - `code` is a stable machine identifier (never change).
  * - `userMessage` is the human-readable, actionable message returned to the
  *   MCP client. Never leak raw server output or credentials into this field.
- * - `cause` preserves the original error for logging/debugging.
+ * - `cause` is propagated via `Error`'s ES2022 `{ cause }` options object and
+ *   inherited from the base class — no need to redeclare on subclasses.
  */
 
 export type ErrorCode =
@@ -31,41 +32,28 @@ export type ErrorCode =
 export class McpInboxError extends Error {
   readonly code: ErrorCode;
   readonly userMessage: string;
-  override readonly cause: unknown;
 
   constructor(code: ErrorCode, userMessage: string, cause?: unknown) {
-    super(userMessage);
-    this.name = 'McpInboxError';
+    super(userMessage, cause !== undefined ? { cause } : undefined);
+    this.name = new.target.name;
     this.code = code;
     this.userMessage = userMessage;
-    this.cause = cause;
+    // V8-only; strips the base constructor frames from the stack trace.
+    // Falls back gracefully on non-V8 runtimes where the property is absent.
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, new.target);
+    }
   }
 }
 
-export class ImapError extends McpInboxError {
-  constructor(code: ErrorCode, userMessage: string, cause?: unknown) {
-    super(code, userMessage, cause);
-    this.name = 'ImapError';
-  }
-}
+export class ImapError extends McpInboxError {}
 
-export class SmtpError extends McpInboxError {
-  constructor(code: ErrorCode, userMessage: string, cause?: unknown) {
-    super(code, userMessage, cause);
-    this.name = 'SmtpError';
-  }
-}
+export class SmtpError extends McpInboxError {}
 
-export class CacheError extends McpInboxError {
-  constructor(code: ErrorCode, userMessage: string, cause?: unknown) {
-    super(code, userMessage, cause);
-    this.name = 'CacheError';
-  }
-}
+export class CacheError extends McpInboxError {}
 
 export class ToolInputError extends McpInboxError {
   constructor(userMessage: string, cause?: unknown) {
     super('TOOL_INVALID_INPUT', userMessage, cause);
-    this.name = 'ToolInputError';
   }
 }

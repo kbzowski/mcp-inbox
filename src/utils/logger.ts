@@ -8,6 +8,10 @@
  * Namespaces follow the `debug` convention: set DEBUG="mcp-inbox:*" to enable
  * everything, or DEBUG="mcp-inbox:cache,mcp-inbox:imap" to enable specific
  * namespaces.
+ *
+ * All logger state is encapsulated in `LoggerContext`. The module exposes a
+ * shared default context for production use; tests construct isolated
+ * contexts to avoid cross-test leakage.
  */
 
 type Level = 'debug' | 'info' | 'warn' | 'error';
@@ -19,12 +23,50 @@ const LEVEL_WEIGHT: Record<Level, number> = {
   error: 40,
 };
 
-let enabledNamespaces: RegExp[] = [];
-let minLevel: Level = 'info';
+export interface Logger {
+  debug: (msg: string, meta?: Record<string, unknown>) => void;
+  info: (msg: string, meta?: Record<string, unknown>) => void;
+  warn: (msg: string, meta?: Record<string, unknown>) => void;
+  error: (msg: string, meta?: Record<string, unknown>) => void;
+  child: (subNamespace: string) => Logger;
+}
 
-export function configureLogger(opts: { debug?: string; level?: Level }): void {
-  enabledNamespaces = parseNamespaces(opts.debug ?? '');
-  minLevel = opts.level ?? 'info';
+export class LoggerContext {
+  private enabledNamespaces: RegExp[] = [];
+  private minLevel: Level = 'info';
+
+  configure(opts: { debug?: string; level?: Level }): void {
+    this.enabledNamespaces = parseNamespaces(opts.debug ?? '');
+    this.minLevel = opts.level ?? 'info';
+  }
+
+  shouldEmit(level: Level, namespace: string): boolean {
+    if (LEVEL_WEIGHT[level] >= LEVEL_WEIGHT[this.minLevel]) return true;
+    return this.enabledNamespaces.some((re) => re.test(namespace));
+  }
+
+  emit(level: Level, namespace: string, msg: string, meta?: Record<string, unknown>): void {
+    if (!this.shouldEmit(level, namespace)) return;
+    // Canonical fields last so user-provided meta cannot overwrite them.
+    const entry = {
+      ...(meta ?? {}),
+      ts: new Date().toISOString(),
+      level,
+      ns: namespace,
+      msg,
+    };
+    process.stderr.write(JSON.stringify(entry) + '\n');
+  }
+
+  logger(namespace: string): Logger {
+    return {
+      debug: (msg, meta) => this.emit('debug', namespace, msg, meta),
+      info: (msg, meta) => this.emit('info', namespace, msg, meta),
+      warn: (msg, meta) => this.emit('warn', namespace, msg, meta),
+      error: (msg, meta) => this.emit('error', namespace, msg, meta),
+      child: (sub) => this.logger(`${namespace}:${sub}`),
+    };
+  }
 }
 
 function parseNamespaces(spec: string): RegExp[] {
@@ -38,39 +80,15 @@ function parseNamespaces(spec: string): RegExp[] {
     });
 }
 
-function namespaceEnabled(ns: string): boolean {
-  return enabledNamespaces.some((re) => re.test(ns));
+/** Shared context used by the running server. Tests should construct their own. */
+const defaultContext = new LoggerContext();
+
+export function configureLogger(opts: { debug?: string; level?: Level }): void {
+  defaultContext.configure(opts);
 }
 
-function emit(level: Level, ns: string, msg: string, meta?: Record<string, unknown>): void {
-  if (LEVEL_WEIGHT[level] < LEVEL_WEIGHT[minLevel] && !namespaceEnabled(ns)) return;
-  const entry = {
-    ts: new Date().toISOString(),
-    level,
-    ns,
-    msg,
-    ...(meta ?? {}),
-  };
-  // Stderr only; see file header.
-  process.stderr.write(JSON.stringify(entry) + '\n');
-}
-
-export interface Logger {
-  debug: (msg: string, meta?: Record<string, unknown>) => void;
-  info: (msg: string, meta?: Record<string, unknown>) => void;
-  warn: (msg: string, meta?: Record<string, unknown>) => void;
-  error: (msg: string, meta?: Record<string, unknown>) => void;
-  child: (subNamespace: string) => Logger;
-}
-
-export function createLogger(namespace: string): Logger {
-  return {
-    debug: (msg, meta) => emit('debug', namespace, msg, meta),
-    info: (msg, meta) => emit('info', namespace, msg, meta),
-    warn: (msg, meta) => emit('warn', namespace, msg, meta),
-    error: (msg, meta) => emit('error', namespace, msg, meta),
-    child: (sub) => createLogger(`${namespace}:${sub}`),
-  };
+export function createLogger(namespace: string, context: LoggerContext = defaultContext): Logger {
+  return context.logger(namespace);
 }
 
 export const rootLogger = createLogger('mcp-inbox');

@@ -1,17 +1,20 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { loadConfig } from './config/env.js';
+import { loadConfig, type AppConfig } from './config/env.js';
 import { createMcpServer } from './server.js';
 import { configureLogger, rootLogger } from './utils/logger.js';
 
-async function main(): Promise<void> {
-  let config;
+function loadConfigOrExit(): AppConfig {
   try {
-    config = loadConfig();
+    return loadConfig();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`${message}\n`);
     process.exit(1);
   }
+}
+
+try {
+  const config = loadConfigOrExit();
 
   configureLogger({ debug: config.debug, level: 'info' });
   rootLogger.info('booting mcp-inbox', {
@@ -23,7 +26,10 @@ async function main(): Promise<void> {
   const server = createMcpServer();
   const transport = new StdioServerTransport();
 
+  let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     rootLogger.info('shutting down', { signal });
     try {
       await server.close();
@@ -40,10 +46,8 @@ async function main(): Promise<void> {
 
   await server.connect(transport);
   rootLogger.info('mcp-inbox ready');
-}
-
-main().catch((err: unknown) => {
+} catch (err) {
   const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
   process.stderr.write(`fatal: ${message}\n`);
   process.exit(1);
-});
+}

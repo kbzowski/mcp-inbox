@@ -6,7 +6,7 @@ import { ImapError, SmtpError, McpInboxError, type ErrorCode } from './types.js'
  * port, or credentials leak through.
  */
 export function mapImapError(err: unknown): ImapError {
-  if (err instanceof McpInboxError && err instanceof ImapError) return err;
+  if (err instanceof ImapError) return err;
 
   const message = errorMessage(err);
   const code = errorCode(err);
@@ -70,7 +70,7 @@ export function mapImapError(err: unknown): ImapError {
 }
 
 export function mapSmtpError(err: unknown): SmtpError {
-  if (err instanceof McpInboxError && err instanceof SmtpError) return err;
+  if (err instanceof SmtpError) return err;
 
   const message = errorMessage(err);
   const code = errorCode(err);
@@ -106,9 +106,8 @@ function errorMessage(err: unknown): string {
 }
 
 function errorCode(err: unknown): string | undefined {
-  if (err && typeof err === 'object' && 'code' in err) {
-    const c = (err as { code: unknown }).code;
-    if (typeof c === 'string') return c;
+  if (err && typeof err === 'object' && 'code' in err && typeof err.code === 'string') {
+    return err.code;
   }
   return undefined;
 }

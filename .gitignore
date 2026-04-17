@@ -39,4 +39,5 @@ npm-debug.log*
 .agents/
 .claude/
 .remember/
+.mcp.json
 skills-lock.json

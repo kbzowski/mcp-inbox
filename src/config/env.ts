@@ -2,10 +2,7 @@ import { z } from 'zod';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 
-const BooleanString = z
-  .enum(['true', 'false'])
-  .transform((v) => v === 'true')
-  .or(z.boolean());
+const BooleanString = z.enum(['true', 'false']).transform((v) => v === 'true');
 
 const CsvList = z
   .string()
@@ -80,7 +77,8 @@ export type AppConfig = z.infer<typeof EnvSchema>;
 
 function defaultCacheDir(): string {
   if (platform() === 'win32') {
-    const base = process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local');
+    const local = process.env.LOCALAPPDATA;
+    const base = local && local.length > 0 ? local : join(homedir(), 'AppData', 'Local');
     return join(base, 'mcp-inbox', 'Cache');
   }
   const xdg = process.env.XDG_CACHE_HOME;
