@@ -6,6 +6,53 @@ import { createLogger } from '../utils/logger.js';
 const log = createLogger('mcp-inbox:imap');
 
 /**
+ * Build and connect an ImapFlow instance from the env-level IMAP config.
+ * Callers decide whether to hold it long-lived (via ImapClient below) or
+ * dedicate it to a single purpose such as IDLE watching a folder.
+ *
+ * Driver errors are mapped to ImapError so auth and DNS failures surface
+ * with actionable messages instead of raw driver output.
+ */
+export async function createImapConnection(config: AppConfig['imap']): Promise<ImapFlow> {
+  log.info('opening IMAP connection', {
+    host: config.host,
+    port: config.port,
+    tls: config.tls,
+  });
+
+  const flow = new ImapFlow({
+    host: config.host,
+    port: config.port,
+    secure: config.tls,
+    auth: {
+      user: config.user,
+      pass: config.password,
+    },
+    ...(config.tls && !config.tlsRejectUnauthorized ? { tls: { rejectUnauthorized: false } } : {}),
+    // We own the logger; mute ImapFlow's built-in console logger.
+    logger: false,
+    // Our own timeout policy.
+    connectionTimeout: config.authTimeoutMs,
+    greetingTimeout: config.authTimeoutMs,
+  });
+
+  flow.on('error', (err: unknown) => {
+    log.error('IMAP connection error', {
+      msg: err instanceof Error ? err.message : String(err),
+    });
+  });
+
+  try {
+    await flow.connect();
+  } catch (err) {
+    throw mapImapError(err);
+  }
+
+  log.info('IMAP connection ready');
+  return flow;
+}
+
+/**
  * Thin connection manager over ImapFlow.
  *
  * Responsibilities:
@@ -15,7 +62,7 @@ const log = createLogger('mcp-inbox:imap');
  *  - Reconnect transparently when the connection drops (NAT timeouts,
  *    server restarts, network hiccups).
  *  - Map driver-level errors into actionable `ImapError` instances via
- *    `errors/mapper.ts` — callers never see raw ImapFlow errors.
+ *    `errors/mapper.ts` - callers never see raw ImapFlow errors.
  *  - Tear down cleanly on SIGINT/SIGTERM via `close()`.
  */
 export class ImapClient {
@@ -53,29 +100,7 @@ export class ImapClient {
   }
 
   async #openConnection(): Promise<ImapFlow> {
-    log.info('opening IMAP connection', {
-      host: this.#config.host,
-      port: this.#config.port,
-      tls: this.#config.tls,
-    });
-
-    const flow = new ImapFlow({
-      host: this.#config.host,
-      port: this.#config.port,
-      secure: this.#config.tls,
-      auth: {
-        user: this.#config.user,
-        pass: this.#config.password,
-      },
-      ...(this.#config.tls && !this.#config.tlsRejectUnauthorized
-        ? { tls: { rejectUnauthorized: false } }
-        : {}),
-      // We own the logger; mute ImapFlow's built-in console logger.
-      logger: false,
-      // Our own timeout policy.
-      connectionTimeout: this.#config.authTimeoutMs,
-      greetingTimeout: this.#config.authTimeoutMs,
-    });
+    const flow = await createImapConnection(this.#config);
 
     // Surface disconnects so the next `.connection()` call reconnects.
     flow.on('close', () => {
@@ -88,19 +113,6 @@ export class ImapClient {
       }
     });
 
-    flow.on('error', (err: unknown) => {
-      log.error('IMAP connection error', {
-        msg: err instanceof Error ? err.message : String(err),
-      });
-    });
-
-    try {
-      await flow.connect();
-    } catch (err) {
-      throw mapImapError(err);
-    }
-
-    log.info('IMAP connection ready');
     return flow;
   }
 

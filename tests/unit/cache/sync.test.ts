@@ -31,7 +31,7 @@ describe('hasAttachments', () => {
   });
 
   it('detects a filename parameter even without explicit disposition', () => {
-    // Some clients omit disposition but still include a filename — treat
+    // Some clients omit disposition but still include a filename - treat
     // those as attachments too.
     expect(
       hasAttachments(

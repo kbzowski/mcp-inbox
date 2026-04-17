@@ -2,7 +2,7 @@ import { ImapError, SmtpError, McpInboxError, type ErrorCode } from './types.js'
 
 /**
  * Convert raw IMAP/SMTP driver errors into actionable McpInboxError instances.
- * The returned `userMessage` is safe to surface to the MCP client — no host,
+ * The returned `userMessage` is safe to surface to the MCP client - no host,
  * port, or credentials leak through.
  */
 export function mapImapError(err: unknown): ImapError {
@@ -62,7 +62,7 @@ export function mapImapError(err: unknown): ImapError {
   if (lower.includes('uidvalidity')) {
     return new ImapError(
       'IMAP_UIDVALIDITY_CHANGED',
-      'The folder was rebuilt on the server; cached UIDs are no longer valid. The cache will resync automatically — retry the operation.',
+      'The folder was rebuilt on the server; cached UIDs are no longer valid. The cache will resync automatically - retry the operation.',
       err,
     );
   }

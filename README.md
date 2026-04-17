@@ -4,7 +4,7 @@
 
 Reads, searches, composes, and manages email from any IMAP provider. A local SQLite cache keeps results fast and stays in sync with the real inbox via IMAP IDLE push notifications.
 
-**Status:** 0.1.0 — under active development. See `CLAUDE.md` for architecture and contributor notes.
+**Status:** 0.1.0 - under active development. See `CLAUDE.md` for architecture and contributor notes.
 
 ## Install
 

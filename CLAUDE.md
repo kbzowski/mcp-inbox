@@ -8,11 +8,11 @@ MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to
 
 ## Runtime & tooling
 
-- **Node.js 24 LTS** — `engines.node: ">=24.0.0"`. SQLite via `better-sqlite3` (prebuilt binaries, no build toolchain required). Previously planned `node:sqlite` but Drizzle ORM does not yet ship a driver for it (drizzle-team/drizzle-orm#2648).
+- **Node.js 24 LTS** - `engines.node: ">=24.0.0"`. SQLite via `better-sqlite3` (prebuilt binaries, no build toolchain required). Previously planned `node:sqlite` but Drizzle ORM does not yet ship a driver for it (drizzle-team/drizzle-orm#2648).
 - **TypeScript strict** with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Do not disable.
 - **ESM only** (`"type": "module"`). Use `.js` import extensions in source (TS resolves them at compile time).
-- **Zod v4** is the single source of truth for all external inputs — env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.
-- **Drizzle ORM** (`drizzle-orm/node-sqlite`) is the cache layer. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
+- **Zod v4** is the single source of truth for all external inputs - env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.
+- **Drizzle ORM** (`drizzle-orm/better-sqlite3`) is the cache layer. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
 
 ## Architecture
 
@@ -35,10 +35,10 @@ src/
 
 - **Never write to stdout.** stdio is the MCP transport. Use `console.error` or the `createLogger()` helper. ESLint enforces `no-console` with `allow: ['error']`.
 - **Never hand-roll MIME.** Use `nodemailer`'s message builder for drafts and sent-copy appends.
-- **Never mutate the database directly.** Use Drizzle queries — they carry types through.
+- **Never mutate the database directly.** Use Drizzle queries - they carry types through.
 - **Never make a tool both listed and undispatched, or dispatched without a listing.** The registry handles this automatically; don't bypass it.
 - **IMAP UIDs are folder-scoped.** Every tool that accepts a `uid` must also accept a `folder`. Don't assume INBOX.
-- **Drafts**: `update_draft` is append-then-delete, never delete-then-append — a failure in the middle must not lose the user's draft.
+- **Drafts**: `update_draft` is append-then-delete, never delete-then-append - a failure in the middle must not lose the user's draft.
 
 ## Cache layer
 
@@ -66,4 +66,4 @@ src/
 | `npm run test` | Vitest unit tests |
 | `npm run test:integration` | Vitest integration (requires GreenMail) |
 | `npm run db:generate` | drizzle-kit generate migrations from `src/cache/schema.ts` |
-| `npm run release` | `changeset publish` — publish a new version |
+| `npm run release` | `changeset publish` - publish a new version |

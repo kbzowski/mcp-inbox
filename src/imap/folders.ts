@@ -15,7 +15,7 @@ export type SpecialUseAttr = '\\Drafts' | '\\Sent' | '\\Trash' | '\\Junk' | '\\A
  * LIST response; fall back to a name-probe against known provider-specific
  * conventions if no folder advertises the attribute.
  *
- * Returns `undefined` if no matching folder exists — callers should handle
+ * Returns `undefined` if no matching folder exists - callers should handle
  * that explicitly (e.g. by creating the folder or surfacing an error).
  */
 export function findSpecialFolder(
@@ -39,7 +39,7 @@ export function findSpecialFolder(
  * Known mailbox names for each special-use attribute, ordered by
  * likelihood. Used only when the server does not advertise SPECIAL-USE.
  *
- * Keep this list conservative — the primary mechanism is the RFC 6154
+ * Keep this list conservative - the primary mechanism is the RFC 6154
  * attribute, and over-long fallback lists just mask server misconfiguration.
  */
 const NAME_CANDIDATES: Record<SpecialUseAttr, readonly string[]> = {

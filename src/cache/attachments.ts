@@ -77,13 +77,13 @@ export function readAttachment(filePath: string): Buffer {
 }
 
 /**
- * Remove an attachment file from disk. Safe to call for a missing file —
+ * Remove an attachment file from disk. Safe to call for a missing file -
  * the caller may be racing against LRU eviction elsewhere.
  */
 export function deleteAttachmentFile(filePath: string): void {
   try {
     unlinkSync(filePath);
   } catch {
-    // Already gone or never existed — both acceptable.
+    // Already gone or never existed - both acceptable.
   }
 }

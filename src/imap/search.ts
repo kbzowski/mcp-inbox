@@ -4,7 +4,7 @@ import type { SearchObject } from 'imapflow';
  * Typed IMAP search criteria, produced by our Zod-validated tool inputs.
  *
  * This type is the single source of truth for what every `imap_*_emails`
- * tool accepts. It stays deliberately narrow — ImapFlow's `SearchObject`
+ * tool accepts. It stays deliberately narrow - ImapFlow's `SearchObject`
  * is much richer (flags, modseq, gmail extensions) but most of that
  * surface isn't exposed to tool callers.
  */
@@ -24,7 +24,7 @@ export interface EmailSearchCriteria {
 /**
  * Convert our typed criteria into ImapFlow's `SearchObject`.
  *
- * An empty criteria object yields `{ all: true }` — ImapFlow sends that
+ * An empty criteria object yields `{ all: true }` - ImapFlow sends that
  * as a bare IMAP `ALL`, matching every message in the mailbox.
  */
 export function buildImapSearch(c: EmailSearchCriteria): SearchObject {

@@ -18,7 +18,7 @@ export interface SyncResult {
   folder: string;
   syncType: SyncType;
   fetched: number;
-  /** Time in ms spent inside syncFolder — useful for telemetry / tests. */
+  /** Time in ms spent inside syncFolder - useful for telemetry / tests. */
   durationMs: number;
 }
 
@@ -49,7 +49,7 @@ export async function syncFolder(ctx: SyncContext, folderPath: string): Promise<
       cached !== undefined && cached.uidValidity !== Number(box.uidValidity);
 
     if (uidValidityChanged) {
-      log.warn('UIDVALIDITY changed — wiping folder cache', {
+      log.warn('UIDVALIDITY changed - wiping folder cache', {
         folder: folderPath,
         cached: cached?.uidValidity,
         server: Number(box.uidValidity),
@@ -106,7 +106,7 @@ async function runSync(
     return { syncType: 'incremental', fetched };
   }
 
-  // No CONDSTORE — fall back to full fetch. A UID-diff fallback is
+  // No CONDSTORE - fall back to full fetch. A UID-diff fallback is
   // tracked for a later iteration (see IMPROVEMENT-PLAN notes).
   const fetched = await fetchAndStoreRange(ctx, folderPath, '1:*');
   return { syncType: 'full', fetched };
@@ -181,9 +181,9 @@ function messageToInsert(
  * a real attachment. A part counts when:
  *  - its Content-Disposition is "attachment", or
  *  - its dispositionParameters include a filename (even if disposition
- *    is missing or "inline" — some clients misclassify).
+ *    is missing or "inline" - some clients misclassify).
  *
- * Exported for unit testing — consumers outside sync.ts shouldn't need it.
+ * Exported for unit testing - consumers outside sync.ts shouldn't need it.
  */
 export function hasAttachments(structure: MessageStructureObject | undefined): boolean {
   if (!structure) return false;

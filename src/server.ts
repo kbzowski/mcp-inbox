@@ -10,7 +10,7 @@ const log = createLogger('mcp-inbox:server');
  *
  * The ListTools and CallTool handlers delegate to the tool registry (added in
  * Phase 5). This stub registers zero tools so the process can boot cleanly and
- * respond to the MCP handshake — useful for smoke-testing the scaffolding.
+ * respond to the MCP handshake - useful for smoke-testing the scaffolding.
  */
 export function createMcpServer(): Server {
   const server = new Server(

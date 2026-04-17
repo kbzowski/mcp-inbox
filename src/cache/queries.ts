@@ -48,7 +48,7 @@ export function listFolders(db: CacheDb): Folder[] {
 // ─── Emails ──────────────────────────────────────────────────────────────
 
 /**
- * Insert or update an email envelope. Matched on (folder, uid) — IMAP UIDs
+ * Insert or update an email envelope. Matched on (folder, uid) - IMAP UIDs
  * are folder-scoped, never global.
  */
 export function upsertEmail(db: CacheDb, row: EmailInsert): void {
@@ -96,7 +96,7 @@ export interface ListEmailsOptions {
 
 /**
  * List cached emails in a folder, newest first by IMAP INTERNALDATE.
- * Messages with a null date sort last — preserves determinism when a
+ * Messages with a null date sort last - preserves determinism when a
  * provider returns envelope-only rows without dates.
  */
 export function listEmailsByFolder(
@@ -117,7 +117,7 @@ export function listEmailsByFolder(
     .offset(opts.offset ?? 0)
     .all();
 
-  // Unseen filter is JSON-encoded in the flags column — do it in JS rather
+  // Unseen filter is JSON-encoded in the flags column - do it in JS rather
   // than SQL json_extract to keep the query portable across drivers.
   if (opts.unseenOnly) {
     rows = rows.filter((r) => !r.flags.includes('\\Seen'));
@@ -148,7 +148,7 @@ export function setEmailFlags(db: CacheDb, folder: string, uid: number, flags: s
 
 /**
  * Wipe every cached message in a folder. Invoked when UIDVALIDITY changes
- * on the server — all our UIDs have been invalidated at once.
+ * on the server - all our UIDs have been invalidated at once.
  */
 export function deleteEmailsByFolder(db: CacheDb, folder: string): void {
   db.delete(emails).where(eq(emails.folder, folder)).run();
@@ -215,7 +215,7 @@ export function setEmailBody(
 
 /**
  * Register a new attachment blob in the content-addressed store.
- * No-op on conflict — the same SHA-256 is immutable by definition.
+ * No-op on conflict - the same SHA-256 is immutable by definition.
  */
 export function upsertAttachment(db: CacheDb, row: AttachmentInsert): void {
   db.insert(attachments).values(row).onConflictDoNothing({ target: attachments.sha256 }).run();

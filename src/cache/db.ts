@@ -32,7 +32,7 @@ export interface CacheHandle {
  *             (used by unit tests).
  * @param migrationsFolder Directory containing drizzle-kit output
  *             (e.g. src/cache/migrations). When omitted, migrations are
- *             skipped — typical only for :memory: unit tests that don't
+ *             skipped - typical only for :memory: unit tests that don't
  *             need a migration history.
  */
 export function openCache(path: string, migrationsFolder?: string): CacheHandle {

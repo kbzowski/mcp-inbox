@@ -1,7 +1,7 @@
 /**
  * Structured stderr-only logger.
  *
- * MCP's stdio transport owns stdout for protocol frames — any `console.log`
+ * MCP's stdio transport owns stdout for protocol frames - any `console.log`
  * corrupts the stream. All diagnostic output here must go to stderr, and the
  * `no-console` ESLint rule enforces this at the code level.
  *
@@ -32,7 +32,7 @@ export interface Logger {
 }
 
 export class LoggerContext {
-  // JS hard-private — consumers of the published package cannot poke at these
+  // JS hard-private - consumers of the published package cannot poke at these
   // from plain JS. TS `private` would be compile-time only.
   #enabledNamespaces: RegExp[] = [];
   #minLevel: Level = 'info';

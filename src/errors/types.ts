@@ -6,7 +6,7 @@
  * - `userMessage` is the human-readable, actionable message returned to the
  *   MCP client. Never leak raw server output or credentials into this field.
  * - `cause` is propagated via `Error`'s ES2022 `{ cause }` options object and
- *   inherited from the base class — no need to redeclare on subclasses.
+ *   inherited from the base class - no need to redeclare on subclasses.
  */
 
 export type ErrorCode =

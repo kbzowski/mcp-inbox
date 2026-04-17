@@ -3,7 +3,7 @@ import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlit
 /**
  * Cache schema for mcp-inbox.
  *
- * Single source of truth — `drizzle-kit generate` produces SQL migrations
+ * Single source of truth - `drizzle-kit generate` produces SQL migrations
  * from this file into src/cache/migrations/, and `drizzle-orm/node-sqlite`
  * infers the query types (InferSelectModel / InferInsertModel) directly.
  *
@@ -20,7 +20,7 @@ import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlit
 export const folders = sqliteTable('folders', {
   /** Full mailbox path as returned by IMAP LIST (e.g. "INBOX", "[Gmail]/Sent Mail"). */
   name: text('name').primaryKey(),
-  /** Delimiter the server uses — usually "." (Dovecot) or "/" (Gmail). */
+  /** Delimiter the server uses - usually "." (Dovecot) or "/" (Gmail). */
   delimiter: text('delimiter').notNull(),
   /** RFC 6154 attribute ("\\Drafts", "\\Sent", etc.) or null. */
   specialUse: text('special_use'),
@@ -37,7 +37,7 @@ export const folders = sqliteTable('folders', {
 /**
  * Cached envelope + optional body for each message, keyed by folder + UID.
  * IMAP UIDs are folder-scoped (and reset when UIDVALIDITY changes), so the
- * composite primary key is mandatory — never use UID alone.
+ * composite primary key is mandatory - never use UID alone.
  */
 export const emails = sqliteTable(
   'emails',
@@ -59,7 +59,7 @@ export const emails = sqliteTable(
     hasAttachments: integer('has_attachments', { mode: 'boolean' }).notNull().default(false),
     /** Full parsed envelope as JSON, for detail-view tools. */
     envelopeJson: text('envelope_json').notNull(),
-    /** Plain-text body, nullable — fetched on demand unless IMAP_CACHE_BODY_INLINE=true. */
+    /** Plain-text body, nullable - fetched on demand unless IMAP_CACHE_BODY_INLINE=true. */
     bodyText: text('body_text'),
     /** HTML body, nullable. Can be large; keep lazy by default. */
     bodyHtml: text('body_html'),
@@ -90,7 +90,7 @@ export const attachments = sqliteTable('attachments', {
   sizeBytes: integer('size_bytes').notNull(),
   /** Absolute path on the local filesystem where the bytes live. */
   filePath: text('file_path').notNull(),
-  /** Epoch ms — used for LRU eviction when cache exceeds maxAttachmentsMB. */
+  /** Epoch ms - used for LRU eviction when cache exceeds maxAttachmentsMB. */
   firstSeenAt: integer('first_seen_at').notNull(),
 });
 
@@ -113,7 +113,7 @@ export const emailAttachments = sqliteTable(
   (t) => [primaryKey({ columns: [t.folder, t.uid, t.partId] })],
 );
 
-// Inferred types — consumed by queries.ts and downstream tool handlers.
+// Inferred types - consumed by queries.ts and downstream tool handlers.
 export type Folder = typeof folders.$inferSelect;
 export type FolderInsert = typeof folders.$inferInsert;
 export type Email = typeof emails.$inferSelect;

@@ -139,7 +139,7 @@ describe('cache queries', () => {
       expect(row?.subject).toBe('Second');
     });
 
-    it('treats (folder, uid) as composite key — same UID in different folders coexist', () => {
+    it('treats (folder, uid) as composite key - same UID in different folders coexist', () => {
       upsertEmail(cache.db, buildEmail({ folder: 'INBOX', uid: 42, subject: 'in inbox' }));
       upsertEmail(cache.db, buildEmail({ folder: 'Sent', uid: 42, subject: 'in sent' }));
 
@@ -279,7 +279,7 @@ describe('cache queries', () => {
       });
       upsertAttachment(cache.db, {
         sha256: 'abc123',
-        // Different metadata, but same bytes — should not overwrite.
+        // Different metadata, but same bytes - should not overwrite.
         filename: 'invoice-copy.pdf',
         contentType: 'application/octet-stream',
         sizeBytes: 1024,

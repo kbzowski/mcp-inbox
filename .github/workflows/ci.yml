@@ -28,7 +28,7 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  # Integration job — activated in Phase 3 when real tests + GreenMail bootstrap land.
+  # Integration job - activated in Phase 3 when real tests + GreenMail bootstrap land.
   # Intentionally left commented so CI stays green during scaffolding phases.
   #
   # integration:

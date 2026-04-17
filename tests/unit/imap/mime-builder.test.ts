@@ -37,12 +37,12 @@ describe('buildRawMessage', () => {
     const raw = await buildRawMessage({
       from: 'alice@example.com',
       to: 'bob@example.com',
-      subject: 'Faktura za kwiecień — 🧾 #12/2026',
+      subject: 'Faktura za kwiecień - 🧾 #12/2026',
       text: 'Szczegóły w załączeniu.',
     });
 
     const parsed = await simpleParser(raw);
-    expect(parsed.subject).toBe('Faktura za kwiecień — 🧾 #12/2026');
+    expect(parsed.subject).toBe('Faktura za kwiecień - 🧾 #12/2026');
     expect(parsed.text?.trim()).toBe('Szczegóły w załączeniu.');
   });
 
