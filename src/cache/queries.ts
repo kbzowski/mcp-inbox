@@ -143,6 +143,48 @@ export function setEmailFlags(db: CacheDb, folder: string, uid: number, flags: s
 }
 
 /**
+ * Apply a flag-set mutation to each of the given UIDs. `mutate` receives
+ * the current flags and returns the new flags. Can't be a single SQL
+ * UPDATE because existing flags vary per row (we're adding/removing
+ * \Seen, not replacing). Wrapped in a transaction so either all rows
+ * update or none do.
+ *
+ * No-ops on empty UID list.
+ */
+export function mutateEmailFlagsForUids(
+  db: CacheDb,
+  folder: string,
+  uids: number[],
+  mutate: (current: string[]) => string[],
+): void {
+  if (uids.length === 0) return;
+  db.transaction((tx) => {
+    const rows = tx
+      .select({ uid: emails.uid, flags: emails.flags })
+      .from(emails)
+      .where(and(eq(emails.folder, folder), inArray(emails.uid, uids)))
+      .all();
+    for (const row of rows) {
+      const next = mutate(row.flags);
+      // Skip the UPDATE when the mutation was a no-op (e.g. \Seen already
+      // present). Saves a write per row on the common case.
+      if (flagsEqual(row.flags, next)) continue;
+      tx.update(emails)
+        .set({ flags: next })
+        .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
+        .run();
+    }
+  });
+}
+
+function flagsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  for (const f of a) if (!setB.has(f)) return false;
+  return true;
+}
+
+/**
  * Wipe every cached message in a folder. Invoked when UIDVALIDITY changes
  * on the server - all our UIDs have been invalidated at once.
  */

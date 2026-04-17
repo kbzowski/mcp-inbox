@@ -5,8 +5,11 @@ import { listEmailsTool } from './emails/list-emails';
 import { getEmailTool } from './emails/get-email';
 import { searchEmailsTool } from './emails/search-emails';
 import { markReadTool, markUnreadTool } from './emails/mark-read';
+import { markReadMultipleTool, markUnreadMultipleTool } from './emails/mark-read-multiple';
 import { moveToFolderTool } from './emails/move-to-folder';
+import { moveMultipleTool } from './emails/move-multiple';
 import { deleteEmailTool } from './emails/delete-email';
+import { deleteMultipleTool } from './emails/delete-multiple';
 import { listDraftsTool } from './drafts/list-drafts';
 import { getDraftTool } from './drafts/get-draft';
 import { createDraftTool } from './drafts/create-draft';
@@ -36,6 +39,11 @@ export const tools: readonly ToolDefinition[] = [
   markUnreadTool,
   moveToFolderTool,
   deleteEmailTool,
+  // Bulk variants of the same (one IMAP round-trip for N UIDs)
+  markReadMultipleTool,
+  markUnreadMultipleTool,
+  moveMultipleTool,
+  deleteMultipleTool,
   // Drafts (compose)
   createDraftTool,
   updateDraftTool,
@@ -68,7 +76,15 @@ export function listToolEntries(): McpToolEntry[] {
   return tools.map((t) => ({
     name: t.name,
     description: t.description,
-    inputSchema: z.toJSONSchema(t.inputSchema, { target: 'draft-7' }) as Record<string, unknown>,
+    // `unrepresentable: 'any'` is needed because some schemas use
+    // `z.coerce.date()` (which has no JSON Schema equivalent). With
+    // this setting, such types become `{}` (matches anything) in the
+    // exposed inputSchema, and the real validation still happens on
+    // the Zod side inside the CallTool dispatcher.
+    inputSchema: z.toJSONSchema(t.inputSchema, {
+      target: 'draft-7',
+      unrepresentable: 'any',
+    }) as Record<string, unknown>,
     annotations: t.annotations,
   }));
 }

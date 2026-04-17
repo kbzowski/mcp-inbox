@@ -54,4 +54,44 @@ describe('buildImapSearch', () => {
   it('does not emit `all: true` when at least one criterion is present', () => {
     expect(buildImapSearch({ subject: 'test' })).not.toHaveProperty('all');
   });
+
+  describe('combinators', () => {
+    it('passes larger_than_bytes / smaller_than_bytes through as `larger` / `smaller`', () => {
+      expect(buildImapSearch({ larger_than_bytes: 1024 })).toEqual({ larger: 1024 });
+      expect(buildImapSearch({ smaller_than_bytes: 500 })).toEqual({ smaller: 500 });
+    });
+
+    it('recursively translates `or` with 2 sub-criteria into a SearchObject[] array', () => {
+      const result = buildImapSearch({
+        or: [{ from: 'alice@example.com' }, { from: 'bob@example.com' }],
+      });
+      expect(result.or).toEqual([{ from: 'alice@example.com' }, { from: 'bob@example.com' }]);
+    });
+
+    it('recursively translates `not` into a SearchObject wrapper', () => {
+      const result = buildImapSearch({ not: { subject: 'newsletter' } });
+      expect(result.not).toEqual({ subject: 'newsletter' });
+    });
+
+    it('combines top-level AND fields with `or` (natural AND-of-OR)', () => {
+      const result = buildImapSearch({
+        subject: 'invoice',
+        or: [{ from: 'acme.com' }, { from: 'beta.com' }],
+      });
+      expect(result.subject).toBe('invoice');
+      expect(result.or).toHaveLength(2);
+      expect(result.all).toBeUndefined();
+    });
+
+    it('handles nested combinators (or inside not)', () => {
+      const result = buildImapSearch({
+        not: {
+          or: [{ from: 'noreply@example.com' }, { from: 'donotreply@example.com' }],
+        },
+      });
+      expect(result.not).toBeDefined();
+      const nested = result.not as { or?: unknown[] };
+      expect(nested.or).toHaveLength(2);
+    });
+  });
 });

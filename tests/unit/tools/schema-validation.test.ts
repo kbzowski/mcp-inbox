@@ -4,8 +4,14 @@ import { searchEmailsTool } from '../../../src/tools/emails/search-emails';
 import { getDraftTool } from '../../../src/tools/drafts/get-draft';
 import { listEmailsTool } from '../../../src/tools/emails/list-emails';
 import { markReadTool, markUnreadTool } from '../../../src/tools/emails/mark-read';
+import {
+  markReadMultipleTool,
+  markUnreadMultipleTool,
+} from '../../../src/tools/emails/mark-read-multiple';
 import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder';
+import { moveMultipleTool } from '../../../src/tools/emails/move-multiple';
 import { deleteEmailTool } from '../../../src/tools/emails/delete-email';
+import { deleteMultipleTool } from '../../../src/tools/emails/delete-multiple';
 import { createDraftTool } from '../../../src/tools/drafts/create-draft';
 import { updateDraftTool } from '../../../src/tools/drafts/update-draft';
 import { sendEmailTool } from '../../../src/tools/send/send-email';
@@ -231,5 +237,112 @@ describe('imap_send_draft input schema', () => {
     const r = sendDraftTool.inputSchema.safeParse({ uid: 1 });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.folder).toBeUndefined();
+  });
+});
+
+describe('bulk tools input schemas', () => {
+  const allBulkTools = [
+    markReadMultipleTool,
+    markUnreadMultipleTool,
+    moveMultipleTool,
+    deleteMultipleTool,
+  ];
+
+  it('all four reject empty uids array', () => {
+    for (const tool of allBulkTools) {
+      const base = tool === moveMultipleTool ? { destination: 'Archive' } : {};
+      expect(tool.inputSchema.safeParse({ folder: 'INBOX', uids: [], ...base }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('all four cap at 500 uids per call', () => {
+    const uids = Array.from({ length: 501 }, (_, i) => i + 1);
+    for (const tool of allBulkTools) {
+      const base = tool === moveMultipleTool ? { destination: 'Archive' } : {};
+      expect(tool.inputSchema.safeParse({ folder: 'INBOX', uids, ...base }).success).toBe(false);
+    }
+  });
+
+  it('mark_read_multiple accepts valid bulk args', () => {
+    const r = markReadMultipleTool.inputSchema.safeParse({
+      folder: 'INBOX',
+      uids: [1, 2, 3],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('move_multiple requires a destination', () => {
+    expect(moveMultipleTool.inputSchema.safeParse({ folder: 'INBOX', uids: [1] }).success).toBe(
+      false,
+    );
+    expect(
+      moveMultipleTool.inputSchema.safeParse({
+        folder: 'INBOX',
+        uids: [1],
+        destination: 'Archive',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('delete_multiple defaults hard_delete to false', () => {
+    const r = deleteMultipleTool.inputSchema.safeParse({ folder: 'INBOX', uids: [1] });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hard_delete).toBe(false);
+  });
+
+  it('bulk marks are idempotent-annotated, bulk move/delete are destructive', () => {
+    expect(markReadMultipleTool.annotations.idempotentHint).toBe(true);
+    expect(markReadMultipleTool.annotations.destructiveHint).toBe(false);
+    expect(markUnreadMultipleTool.annotations.idempotentHint).toBe(true);
+    expect(moveMultipleTool.annotations.destructiveHint).toBe(true);
+    expect(deleteMultipleTool.annotations.destructiveHint).toBe(true);
+  });
+
+  it('rejects zero / negative UIDs in the array', () => {
+    expect(
+      markReadMultipleTool.inputSchema.safeParse({ folder: 'INBOX', uids: [1, 0, 2] }).success,
+    ).toBe(false);
+    expect(
+      markReadMultipleTool.inputSchema.safeParse({ folder: 'INBOX', uids: [-1] }).success,
+    ).toBe(false);
+  });
+});
+
+describe('imap_search_emails - combinator fields', () => {
+  it('accepts larger_than_bytes / smaller_than_bytes alone', () => {
+    expect(
+      searchEmailsTool.inputSchema.safeParse({ folder: 'INBOX', larger_than_bytes: 5_000_000 })
+        .success,
+    ).toBe(true);
+  });
+
+  it('requires `or` array to have at least 2 elements', () => {
+    expect(
+      searchEmailsTool.inputSchema.safeParse({
+        folder: 'INBOX',
+        or: [{ from: 'only-one@example.com' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts `or` with 2+ sub-criteria', () => {
+    expect(
+      searchEmailsTool.inputSchema.safeParse({
+        folder: 'INBOX',
+        or: [{ from: 'a@x.com' }, { from: 'b@x.com' }],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts `not` with nested sub-criteria', () => {
+    expect(
+      searchEmailsTool.inputSchema.safeParse({
+        folder: 'INBOX',
+        subject: 'invoice',
+        not: { from: 'noreply@acme.com' },
+      }).success,
+    ).toBe(true);
   });
 });
