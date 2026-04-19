@@ -4,31 +4,84 @@
     <meta charset="utf-8" />
     <title>Claude Email Search — Options</title>
     <style>
-      body { font-family: system-ui, sans-serif; font-size: 13px; padding: 16px; max-width: 480px; }
-      label { display: block; margin-bottom: 4px; font-weight: 600; }
-      input[type="text"] { width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-      button { margin-top: 10px; padding: 6px 16px; background: #0060df; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
-      button:hover { background: #0250bb; }
-      #status { margin-top: 8px; font-size: 12px; }
-      #status.ok { color: #057a00; }
-      #status.error { color: #d00; }
-      p.hint { color: #666; font-size: 12px; margin: 4px 0 10px; }
+      body {
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        padding: 16px;
+        max-width: 480px;
+      }
+      label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 6px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+      button {
+        margin-top: 10px;
+        padding: 6px 16px;
+        background: #0060df;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button:hover {
+        background: #0250bb;
+      }
+      #status {
+        margin-top: 8px;
+        font-size: 12px;
+      }
+      #status.ok {
+        color: #057a00;
+      }
+      #status.error {
+        color: #d00;
+      }
+      p.hint {
+        color: #666;
+        font-size: 12px;
+        margin: 4px 0 10px;
+      }
     </style>
   </head>
   <body>
-    <h2 style="margin-top:0">Claude Email Search</h2>
+    <h2 style="margin-top: 0">Claude Email Search</h2>
     <form id="options-form">
       <label for="mcp-dir">MCP Project Directory</label>
       <p class="hint">
-        Path to the directory that contains <code>.mcp.json</code>.
-        Claude CLI will be run from this directory.
+        Path to the directory that contains <code>.mcp.json</code>. Claude CLI will be run from this
+        directory.
       </p>
       <input type="text" id="mcp-dir" placeholder="C:\path\to\mcp-project" spellcheck="false" />
 
-      <label for="model" style="margin-top:14px">Claude Model</label>
-      <p class="hint">Model used for natural language search. Type any model ID or pick from the list.</p>
-      <input type="text" id="model" list="model-list" placeholder="claude-sonnet-4-6"
-             style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box" spellcheck="false" />
+      <label for="model" style="margin-top: 14px">Claude Model</label>
+      <p class="hint">
+        Model used for natural language search. Type any model ID or pick from the list.
+      </p>
+      <input
+        type="text"
+        id="model"
+        list="model-list"
+        placeholder="claude-sonnet-4-6"
+        style="
+          width: 100%;
+          padding: 6px;
+          border: 1px solid #ccc;
+          border-radius: 4px;
+          font-size: 13px;
+          box-sizing: border-box;
+        "
+        spellcheck="false"
+      />
       <datalist id="model-list"></datalist>
 
       <button type="submit">Save</button>

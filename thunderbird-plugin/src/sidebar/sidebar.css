@@ -1,7 +1,14 @@
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 13px;
   background: var(--in-content-page-background, #fff);
   color: var(--in-content-text-color, #0c0c0d);
@@ -41,8 +48,13 @@ body {
   white-space: nowrap;
 }
 
-#search-btn:hover { background: #0250bb; }
-#search-btn:disabled { background: #aaa; cursor: default; }
+#search-btn:hover {
+  background: #0250bb;
+}
+#search-btn:disabled {
+  background: #aaa;
+  cursor: default;
+}
 
 #status {
   padding: 3px 8px;
@@ -59,7 +71,9 @@ body {
   line-height: 1.4;
 }
 
-.card:hover { background: var(--in-content-button-background-hover, #f0f0f0); }
+.card:hover {
+  background: var(--in-content-button-background-hover, #f0f0f0);
+}
 
 .card.opening {
   cursor: wait;
@@ -73,14 +87,23 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1s infinite linear;
 }
 
 @keyframes shimmer {
-  from { background-position: 200% 0; }
-  to   { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .card-top {
@@ -117,7 +140,9 @@ body {
   font-size: 12px;
 }
 
-.att { font-size: 10px; }
+.att {
+  font-size: 10px;
+}
 
 .folder-label {
   font-size: 10px;
@@ -131,7 +156,9 @@ body {
   font-size: 12px;
 }
 
-.error a { color: #0060df; }
+.error a {
+  color: #0060df;
+}
 
 .empty {
   padding: 10px 8px;

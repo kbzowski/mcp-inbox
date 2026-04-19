@@ -12,7 +12,7 @@ pre-commit:
       stage_fixed: true
 
     - name: prettier-thunderbird
-      glob: 'thunderbird-plugin/src/**/*.{ts,js,mjs,json}'
+      glob: 'thunderbird-plugin/src/**/*.{ts,js,mjs,json,html,css}'
       run: npx prettier --write {staged_files}
       stage_fixed: true
 
