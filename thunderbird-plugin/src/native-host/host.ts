@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,14 @@ function runClaude(query: string, mcpDir: string, model = 'claude-sonnet-4-6'): 
       maxBuffer: 10 * 1024 * 1024,
       timeout: 90_000,
       windowsHide: true,
+      env: {
+        ...process.env,
+        IMAP_CACHE_DIR: join(
+          process.env['HOME'] ?? process.env['USERPROFILE'] ?? '.',
+          '.cache',
+          'mcp-inbox-thunderbird',
+        ),
+      },
     },
   );
 
