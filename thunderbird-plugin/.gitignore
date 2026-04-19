@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.xpi
+native-host/host-launcher.exe
+native-host/claude_email_search.json

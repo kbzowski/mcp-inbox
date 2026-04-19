@@ -1,0 +1,28 @@
+{
+  "manifest_version": 2,
+  "name": "Claude Email Search",
+  "version": "1.0.0",
+  "description": "Natural language email search via Claude CLI and IMAP MCP",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "claude-email-search@local",
+      "strict_min_version": "102.0"
+    }
+  },
+
+  "permissions": ["nativeMessaging", "messagesRead", "accountsRead", "storage"],
+
+  "background": {
+    "scripts": ["dist/background.js"]
+  },
+
+  "browser_action": {
+    "default_title": "Claude Search"
+  },
+
+  "options_ui": {
+    "page": "dist/options/options.html",
+    "open_in_tab": false
+  }
+}

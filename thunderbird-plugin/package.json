@@ -1,0 +1,20 @@
+{
+  "name": "thunderbird-claude-search",
+  "version": "1.0.0",
+  "description": "Thunderbird plugin: natural language email search via Claude CLI + IMAP MCP",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:watch": "node build.mjs --watch",
+    "pack": "node build.mjs --pack",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/webextension-polyfill": "^0.10.7",
+    "archiver": "^7.0.1",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}
