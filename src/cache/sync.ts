@@ -98,6 +98,20 @@ export function diffUids(
   };
 }
 
+/**
+ * CHANGEDSINCE is a CONDSTORE-only FETCH modifier. Sending it to a server that
+ * does not advertise CONDSTORE earns a BAD response and fails the whole sync,
+ * so gate it on what the server reports now - not on a modseq we cached back
+ * when it still supported the extension.
+ */
+export function changedSinceFor(
+  serverModseq: number | null,
+  cachedModseq: number | null | undefined,
+): number | null {
+  if (serverModseq === null) return null;
+  return cachedModseq ?? null;
+}
+
 async function runSync(
   ctx: SyncContext,
   folderPath: string,
@@ -122,7 +136,7 @@ async function runSync(
   const flagsUnchanged =
     serverModseq !== null && cached?.highestModseq != null && serverModseq === cached.highestModseq;
   if (!flagsUnchanged && serverUids.length > missing.length) {
-    await refreshFlags(ctx, folderPath, cached?.highestModseq ?? null);
+    await refreshFlags(ctx, folderPath, changedSinceFor(serverModseq, cached?.highestModseq));
   }
 
   if (coldStart) return { syncType: 'full', fetched };

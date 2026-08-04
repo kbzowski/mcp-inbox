@@ -58,6 +58,7 @@ export function buildHarness(): IntegrationHarness {
     cacheConfig: {
       dir: '/tmp/mcp-inbox-test',
       defaultStalenessSec: 60,
+      bodyRetainDays: 180,
     },
     defaults: {
       fromAddress: 'test@localhost',

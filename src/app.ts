@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig, type AppConfig } from './config/env';
 import { DEFAULT_MIGRATIONS_FOLDER, openCache } from './cache/db';
+import { pruneBodiesBefore } from './cache/queries';
 import { IdleManager } from './cache/idle';
 import { ImapClient } from './imap/client';
 import { SmtpClient } from './smtp/client';
@@ -32,6 +33,17 @@ try {
   });
 
   const cache = openCache(join(config.cache.dir, 'cache.db'), DEFAULT_MIGRATIONS_FOLDER);
+
+  if (config.cache.bodyRetainDays > 0) {
+    const cutoff = Date.now() - config.cache.bodyRetainDays * 86_400_000;
+    const pruned = pruneBodiesBefore(cache.db, cutoff);
+    if (pruned > 0) {
+      rootLogger.info('pruned stale message bodies', {
+        rows: pruned,
+        retainDays: config.cache.bodyRetainDays,
+      });
+    }
+  }
   const imapClient = new ImapClient(config.imap);
   const smtpClient = new SmtpClient(config.smtp);
 

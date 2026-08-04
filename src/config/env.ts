@@ -36,6 +36,7 @@ const EnvSchema = z
     // Cache
     IMAP_CACHE_DIR: z.string().min(1).optional(),
     IMAP_CACHE_DEFAULT_STALENESS_SEC: z.coerce.number().int().min(0).default(60),
+    IMAP_CACHE_BODY_RETAIN_DAYS: z.coerce.number().int().min(0).default(180),
 
     // IDLE
     IMAP_IDLE_ENABLED: BooleanString.default(true),
@@ -64,6 +65,7 @@ const EnvSchema = z
     cache: {
       dir: raw.IMAP_CACHE_DIR ?? defaultCacheDir(),
       defaultStalenessSec: raw.IMAP_CACHE_DEFAULT_STALENESS_SEC,
+      bodyRetainDays: raw.IMAP_CACHE_BODY_RETAIN_DAYS,
     },
     idle: {
       enabled: raw.IMAP_IDLE_ENABLED,

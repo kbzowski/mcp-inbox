@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MessageStructureObject } from 'imapflow';
-import { diffUids, hasAttachments } from '../../../src/cache/sync';
+import { changedSinceFor, diffUids, hasAttachments } from '../../../src/cache/sync';
 
 /**
  * Build a minimal MessageStructureObject for tests. Only the fields the
@@ -36,6 +36,24 @@ describe('diffUids', () => {
 
   it('evicts everything when the server folder is empty', () => {
     expect(diffUids([1, 2], [])).toEqual({ missing: [], ghosts: [1, 2] });
+  });
+});
+
+describe('changedSinceFor', () => {
+  it('narrows to the cached modseq when the server has CONDSTORE', () => {
+    expect(changedSinceFor(500, 400)).toBe(400);
+  });
+
+  it('never sends CHANGEDSINCE when the server dropped CONDSTORE', () => {
+    // Regression: a modseq cached from a CONDSTORE-capable server used to be
+    // sent anyway, which is a BAD response and a failed sync with no recovery.
+    expect(changedSinceFor(null, 400)).toBeNull();
+  });
+
+  it('returns null when neither side has a modseq', () => {
+    expect(changedSinceFor(null, null)).toBeNull();
+    expect(changedSinceFor(500, null)).toBeNull();
+    expect(changedSinceFor(500, undefined)).toBeNull();
   });
 });
 

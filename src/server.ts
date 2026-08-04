@@ -4,6 +4,7 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
+import pkg from '../package.json' with { type: 'json' };
 import { isMcpInboxError } from './errors/mapper';
 import { createLogger } from './utils/logger';
 import type { ToolContext } from './tools/define-tool';
@@ -20,7 +21,7 @@ export function createMcpServer(ctx: ToolContext): Server {
   const server = new Server(
     {
       name: 'mcp-inbox',
-      version: '0.1.0',
+      version: pkg.version,
     },
     {
       capabilities: {

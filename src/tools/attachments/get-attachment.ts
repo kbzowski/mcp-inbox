@@ -172,41 +172,30 @@ export function findAttachmentPart(
   structure: MessageStructureObject,
   selector: { filename?: string; part_id?: string },
 ): AttachmentMatch | null {
-  const stack: MessageStructureObject[] = [structure];
-  while (stack.length > 0) {
-    const node = stack.pop();
+  // Document order, so the part matched here is the same one pickAttachment
+  // returns. A LIFO walk would disagree whenever filenames collide, and the
+  // size guard would then measure a different part than the one downloaded.
+  const queue: MessageStructureObject[] = [structure];
+  while (queue.length > 0) {
+    const node = queue.shift();
     if (!node) continue;
 
-    if (node.childNodes) {
-      for (const child of node.childNodes) stack.push(child);
-      continue;
-    }
-
     const partId = node.part;
-    if (!partId) continue;
-
     const nodeFilename = node.dispositionParameters?.filename ?? node.parameters?.name;
 
-    if (selector.part_id !== undefined) {
-      if (partId === selector.part_id) {
-        return {
-          partId,
-          filename: nodeFilename,
-          contentType: node.type,
-          size: node.size,
-        };
+    // A container can itself be an attachment (message/rfc822 forwards carry
+    // both a filename and childNodes), so test it before descending.
+    if (partId !== undefined) {
+      const matches =
+        selector.part_id !== undefined
+          ? partId === selector.part_id
+          : selector.filename !== undefined && nodeFilename === selector.filename;
+      if (matches) {
+        return { partId, filename: nodeFilename, contentType: node.type, size: node.size };
       }
-      continue;
     }
 
-    if (selector.filename !== undefined && nodeFilename === selector.filename) {
-      return {
-        partId,
-        filename: nodeFilename,
-        contentType: node.type,
-        size: node.size,
-      };
-    }
+    if (node.childNodes) queue.push(...node.childNodes);
   }
 
   return null;

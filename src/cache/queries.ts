@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import type { CacheDb } from './db';
+import { createLogger } from '../utils/logger';
 import {
   folders,
   emails,
@@ -9,6 +10,8 @@ import {
   type Email,
   type EmailInsert,
 } from './schema';
+
+const log = createLogger('mcp-inbox:cache');
 
 // ─── Folders ─────────────────────────────────────────────────────────────
 
@@ -170,23 +173,39 @@ export function setEmailFlags(db: CacheDb, folder: string, uid: number, flags: s
     .run();
 }
 
+/**
+ * SQLite rejects a statement with more than 32766 bound parameters, and an
+ * `IN (...)` list binds one per UID. Folders routinely exceed that, so every
+ * UID-list query is split into batches below the limit.
+ */
+const UID_BATCH = 10_000;
+
+function inBatches<T>(items: readonly T[], run: (batch: T[]) => void): void {
+  for (let i = 0; i < items.length; i += UID_BATCH) {
+    run(items.slice(i, i + UID_BATCH));
+  }
+}
+
 /** UIDs with no cached row are silently ignored. */
 export function setFlagsForUids(db: CacheDb, folder: string, next: Map<number, string[]>): void {
   if (next.size === 0) return;
+  const uids = [...next.keys()];
   db.transaction((tx) => {
-    const rows = tx
-      .select({ uid: emails.uid, flags: emails.flags })
-      .from(emails)
-      .where(and(eq(emails.folder, folder), inArray(emails.uid, [...next.keys()])))
-      .all();
-    for (const row of rows) {
-      const flags = next.get(row.uid);
-      if (!flags || flagsEqual(row.flags, flags)) continue;
-      tx.update(emails)
-        .set({ flags })
-        .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
-        .run();
-    }
+    inBatches(uids, (batch) => {
+      const rows = tx
+        .select({ uid: emails.uid, flags: emails.flags })
+        .from(emails)
+        .where(and(eq(emails.folder, folder), inArray(emails.uid, batch)))
+        .all();
+      for (const row of rows) {
+        const flags = next.get(row.uid);
+        if (!flags || flagsEqual(row.flags, flags)) continue;
+        tx.update(emails)
+          .set({ flags })
+          .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
+          .run();
+      }
+    });
   });
 }
 
@@ -207,21 +226,23 @@ export function mutateEmailFlagsForUids(
 ): void {
   if (uids.length === 0) return;
   db.transaction((tx) => {
-    const rows = tx
-      .select({ uid: emails.uid, flags: emails.flags })
-      .from(emails)
-      .where(and(eq(emails.folder, folder), inArray(emails.uid, uids)))
-      .all();
-    for (const row of rows) {
-      const next = mutate(row.flags);
-      // Skip the UPDATE when the mutation was a no-op (e.g. \Seen already
-      // present). Saves a write per row on the common case.
-      if (flagsEqual(row.flags, next)) continue;
-      tx.update(emails)
-        .set({ flags: next })
-        .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
-        .run();
-    }
+    inBatches(uids, (batch) => {
+      const rows = tx
+        .select({ uid: emails.uid, flags: emails.flags })
+        .from(emails)
+        .where(and(eq(emails.folder, folder), inArray(emails.uid, batch)))
+        .all();
+      for (const row of rows) {
+        const next = mutate(row.flags);
+        // Skip the UPDATE when the mutation was a no-op (e.g. \Seen already
+        // present). Saves a write per row on the common case.
+        if (flagsEqual(row.flags, next)) continue;
+        tx.update(emails)
+          .set({ flags: next })
+          .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
+          .run();
+      }
+    });
   });
 }
 
@@ -256,9 +277,32 @@ export function deleteEmail(db: CacheDb, folder: string, uid: number): void {
  */
 export function deleteEmailsByUids(db: CacheDb, folder: string, uids: number[]): void {
   if (uids.length === 0) return;
-  db.delete(emails)
-    .where(and(eq(emails.folder, folder), inArray(emails.uid, uids)))
+  inBatches(uids, (batch) => {
+    db.delete(emails)
+      .where(and(eq(emails.folder, folder), inArray(emails.uid, batch)))
+      .run();
+  });
+}
+
+/**
+ * Drop cached bodies last read before `cutoffMs`, keeping the envelope row.
+ * Envelopes are small and drive list/search; bodies are the unbounded part.
+ * Returns the number of rows cleared.
+ */
+export function pruneBodiesBefore(db: CacheDb, cutoffMs: number): number {
+  const stale = db
+    .select({ n: sql<number>`count(*)` })
+    .from(emails)
+    .where(lt(emails.bodyCachedAt, cutoffMs))
+    .get();
+  const count = stale?.n ?? 0;
+  if (count === 0) return 0;
+
+  db.update(emails)
+    .set({ bodyText: null, bodyHtml: null, attachmentsJson: null, bodyCachedAt: null })
+    .where(lt(emails.bodyCachedAt, cutoffMs))
     .run();
+  return count;
 }
 
 export interface CachedBody {
@@ -288,7 +332,20 @@ export function setEmailBody(
   uid: number,
   body: { text: string | null; html: string | null; attachments?: AttachmentInfo[] },
   nowMs: number,
-): void {
+): boolean {
+  const existing = db
+    .select({ uid: emails.uid })
+    .from(emails)
+    .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))
+    .get();
+
+  // An UPDATE against a missing row is a silent no-op, which would make every
+  // later read refetch the whole message with nothing to explain why.
+  if (!existing) {
+    log.warn('cannot cache body, envelope row missing', { folder, uid });
+    return false;
+  }
+
   db.update(emails)
     .set({
       bodyText: body.text,
@@ -298,4 +355,5 @@ export function setEmailBody(
     })
     .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))
     .run();
+  return true;
 }

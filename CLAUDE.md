@@ -46,6 +46,8 @@ src/
 - Freshness: each read tool accepts `max_staleness_seconds` (default 60). If the folder was synced within that window, serve from cache with no network.
 - Invalidation: `UIDVALIDITY` change ⇒ wipe that folder's cache. `EXPUNGE` (from IDLE) ⇒ delete cached row.
 - Write-through: mutations optimistically update the cache; next sync/IDLE event reconciles.
+- Retention: message bodies are the only unbounded part of the cache, so `IMAP_CACHE_BODY_RETAIN_DAYS` (default 180, `0` disables) clears bodies older than that at startup. Envelopes stay - they're small and drive list/search.
+- Any query with an `IN (...)` over UIDs must batch. SQLite caps a statement at 32766 bound parameters and real folders exceed that; `inBatches()` in `queries.ts` is the shared helper.
 - IDLE is on by default for INBOX via `IMAP_IDLE_FOLDERS`. Empty string disables.
 
 ## Common pitfalls

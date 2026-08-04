@@ -66,6 +66,60 @@ describe('findAttachmentPart walker', () => {
     });
     expect(findAttachmentPart(legacy, { filename: 'legacy-attachment.zip' })?.partId).toBe('1');
   });
+
+  it('returns the first match in document order when filenames collide', () => {
+    // The size guard and pickAttachment must agree on which part they mean.
+    // A LIFO walk returned the last duplicate, so a small attachment could be
+    // rejected for the size of a larger namesake later in the tree.
+    const duplicates: MessageStructureObject = part({
+      type: 'multipart/mixed',
+      childNodes: [
+        part({
+          type: 'application/pdf',
+          part: '2',
+          size: 200,
+          dispositionParameters: {
+            filename: 'report.pdf',
+          },
+        }),
+        part({
+          type: 'application/pdf',
+          part: '3',
+          size: 20_000_000,
+          dispositionParameters: {
+            filename: 'report.pdf',
+          },
+        }),
+      ],
+    });
+
+    const match = findAttachmentPart(duplicates, { filename: 'report.pdf' });
+    expect(match?.partId).toBe('2');
+    expect(match?.size).toBe(200);
+  });
+
+  it('matches a container part that is itself an attachment', () => {
+    // message/rfc822 forwards carry both a filename and childNodes. Skipping
+    // every node with children made them invisible to the size guard.
+    const forwarded: MessageStructureObject = part({
+      type: 'multipart/mixed',
+      childNodes: [
+        part({ type: 'text/plain', part: '1' }),
+        part({
+          type: 'message/rfc822',
+          part: '2',
+          size: 40_000_000,
+          disposition: 'attachment',
+          dispositionParameters: { filename: 'forwarded.eml' },
+          childNodes: [part({ type: 'text/plain', part: '2.1' })],
+        }),
+      ],
+    });
+
+    const match = findAttachmentPart(forwarded, { filename: 'forwarded.eml' });
+    expect(match?.partId).toBe('2');
+    expect(match?.size).toBe(40_000_000);
+  });
 });
 
 describe('imap_get_attachment input schema', () => {

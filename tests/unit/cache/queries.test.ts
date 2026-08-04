@@ -17,6 +17,7 @@ import {
   deleteEmailsByUids,
   getEmailBody,
   setEmailBody,
+  pruneBodiesBefore,
 } from '../../../src/cache/queries';
 
 const MIGRATIONS = resolve(process.cwd(), 'src/cache/migrations');
@@ -263,6 +264,29 @@ describe('cache queries', () => {
       expect(getEmail(cache.db, 'INBOX', 2)?.flags).toEqual([]);
     });
 
+    it('handles more UIDs than SQLite allows bound parameters', () => {
+      // SQLite caps a statement at 32766 parameters and an IN (...) list binds
+      // one per UID, so an unbatched query threw "too many SQL variables" for
+      // any folder this size. Real mailboxes (Gmail All Mail) reach it easily.
+      const N = 40_000;
+      deleteEmailsByFolder(cache.db, 'INBOX');
+      const next = new Map<number, string[]>();
+      for (let uid = 1; uid <= N; uid++) {
+        upsertEmail(cache.db, buildEmail({ uid, flags: [] }));
+        next.set(uid, ['\\Seen']);
+      }
+
+      expect(() => {
+        setFlagsForUids(cache.db, 'INBOX', next);
+      }).not.toThrow();
+      expect(getEmail(cache.db, 'INBOX', N)?.flags).toEqual(['\\Seen']);
+
+      expect(() => {
+        deleteEmailsByUids(cache.db, 'INBOX', [...next.keys()]);
+      }).not.toThrow();
+      expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(0);
+    });
+
     it('setFlagsForUids ignores UIDs with no cached row', () => {
       setFlagsForUids(cache.db, 'INBOX', new Map([[999, ['\\Seen']]]));
       expect(getEmail(cache.db, 'INBOX', 999)).toBeUndefined();
@@ -289,6 +313,32 @@ describe('cache queries', () => {
         attachments: [],
         bodyCachedAt: 5_000,
       });
+    });
+
+    it('setEmailBody reports failure instead of silently dropping the write', () => {
+      expect(setEmailBody(cache.db, 'INBOX', 999, { text: 'hi', html: null }, 5_000)).toBe(false);
+      expect(setEmailBody(cache.db, 'INBOX', 1, { text: 'hi', html: null }, 5_000)).toBe(true);
+    });
+
+    it('pruneBodiesBefore clears stale bodies but keeps the envelope', () => {
+      setEmailBody(cache.db, 'INBOX', 1, { text: 'old', html: '<p>old</p>' }, 1_000);
+
+      expect(pruneBodiesBefore(cache.db, 5_000)).toBe(1);
+      expect(getEmailBody(cache.db, 'INBOX', 1)).toEqual({
+        bodyText: null,
+        bodyHtml: null,
+        attachments: null,
+        bodyCachedAt: null,
+      });
+      expect(getEmail(cache.db, 'INBOX', 1)?.subject).toBe('Hello');
+    });
+
+    it('pruneBodiesBefore leaves fresh bodies and uncached rows alone', () => {
+      setEmailBody(cache.db, 'INBOX', 1, { text: 'fresh', html: null }, 9_000);
+      upsertEmail(cache.db, buildEmail({ uid: 2 }));
+
+      expect(pruneBodiesBefore(cache.db, 5_000)).toBe(0);
+      expect(getEmailBody(cache.db, 'INBOX', 1)?.bodyText).toBe('fresh');
     });
 
     it('setEmailBody round-trips attachment metadata', () => {
