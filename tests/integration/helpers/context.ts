@@ -60,6 +60,8 @@ export function buildHarness(): IntegrationHarness {
       defaultStalenessSec: 60,
       bodyRetainDays: 180,
     },
+    embeddings: null,
+    vectorsAvailable: cache.vectorsAvailable,
     defaults: {
       fromAddress: 'test@localhost',
     },

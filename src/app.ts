@@ -52,6 +52,8 @@ try {
     imap: imapClient,
     smtp: smtpClient,
     cacheConfig: config.cache,
+    embeddings: config.embeddings,
+    vectorsAvailable: cache.vectorsAvailable,
     defaults: {
       fromAddress: config.imap.user,
     },
