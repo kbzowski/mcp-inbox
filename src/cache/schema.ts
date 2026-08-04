@@ -34,6 +34,13 @@ export const folders = sqliteTable('folders', {
   lastSyncedAt: integer('last_synced_at').notNull(),
 });
 
+/** Metadata only - attachment bytes are never persisted. */
+export interface AttachmentInfo {
+  filename: string | null;
+  content_type: string;
+  size_bytes: number;
+}
+
 /**
  * Cached envelope + optional body for each message, keyed by folder + UID.
  * IMAP UIDs are folder-scoped (and reset when UIDVALIDITY changes), so the
@@ -59,10 +66,12 @@ export const emails = sqliteTable(
     hasAttachments: integer('has_attachments', { mode: 'boolean' }).notNull().default(false),
     /** Full parsed envelope as JSON, for detail-view tools. */
     envelopeJson: text('envelope_json').notNull(),
-    /** Plain-text body, nullable - fetched on demand unless IMAP_CACHE_BODY_INLINE=true. */
+    /** Plain-text body, nullable - fetched on first read of the message. */
     bodyText: text('body_text'),
     /** HTML body, nullable. Can be large; keep lazy by default. */
     bodyHtml: text('body_html'),
+    /** Attachment metadata, written with the body in the same fetch. */
+    attachmentsJson: text('attachments_json', { mode: 'json' }).$type<AttachmentInfo[]>(),
     /** Per-message MODSEQ (RFC 7162). Used for CONDSTORE incremental sync. */
     modseq: integer('modseq'),
     /** Epoch ms of envelope cache write. */

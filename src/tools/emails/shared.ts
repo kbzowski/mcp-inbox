@@ -12,7 +12,7 @@ import {
   setEmailBody,
   type ListEmailsOptions,
 } from '../../cache/queries';
-import type { Email } from '../../cache/schema';
+import type { AttachmentInfo, Email } from '../../cache/schema';
 import { findSpecialFolder, type SpecialUseAttr } from '../../imap/folders';
 
 /**
@@ -82,27 +82,12 @@ export async function resolveSpecialFolder(
   }
 }
 
-/**
- * Metadata view of an attachment part. We deliberately do NOT surface
- * the bytes or a download path - the goal is to let the agent *describe*
- * attachments, not to cache sensitive content outside the user's mail
- * client. If the user wants the file, they open their mail client.
- */
-export interface AttachmentInfo {
-  filename: string | null;
-  content_type: string;
-  size_bytes: number;
-}
+export type { AttachmentInfo };
 
 /**
- * Ensure a single message's body is cached, fetching it lazily from the
- * server on first access. Stores both plain-text and HTML parts when the
- * message has them. Idempotent - calling twice does a single fetch.
- *
- * Also returns attachment metadata (filename + content-type + size) so
- * tools can describe what's attached without downloading bytes. The
- * metadata itself is re-derived on each call since it's small and the
- * canonical source is the live message.
+ * Fetch a message's body and attachment metadata, caching both on first
+ * access. Message bodies are immutable, so a cached entry is served
+ * without touching the network - no staleness window applies.
  */
 export async function ensureBodyCached(
   ctx: ToolContext,
@@ -113,6 +98,15 @@ export async function ensureBodyCached(
   bodyHtml: string | null;
   attachments: AttachmentInfo[];
 }> {
+  const cached = getEmailBody(ctx.db, folder, uid);
+  if (cached?.bodyCachedAt != null) {
+    return {
+      bodyText: cached.bodyText,
+      bodyHtml: cached.bodyHtml,
+      attachments: cached.attachments ?? [],
+    };
+  }
+
   const imap = await ctx.imap.connection();
   const lock = await imap.getMailboxLock(folder);
   try {
@@ -127,16 +121,13 @@ export async function ensureBodyCached(
     const bodyText = parsed.text ?? null;
     const bodyHtml = typeof parsed.html === 'string' ? parsed.html : null;
 
-    const cached = getEmailBody(ctx.db, folder, uid);
-    if (cached?.bodyCachedAt == null) {
-      setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml }, ctx.now());
-    }
-
     const attachments: AttachmentInfo[] = (parsed.attachments ?? []).map((a) => ({
       filename: a.filename ?? null,
       content_type: a.contentType ?? 'application/octet-stream',
       size_bytes: typeof a.size === 'number' ? a.size : 0,
     }));
+
+    setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml, attachments }, ctx.now());
 
     return { bodyText, bodyHtml, attachments };
   } catch (err) {

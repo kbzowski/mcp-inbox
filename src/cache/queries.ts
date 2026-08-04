@@ -3,6 +3,7 @@ import type { CacheDb } from './db';
 import {
   folders,
   emails,
+  type AttachmentInfo,
   type Folder,
   type FolderInsert,
   type Email,
@@ -263,6 +264,7 @@ export function deleteEmailsByUids(db: CacheDb, folder: string, uids: number[]):
 export interface CachedBody {
   bodyText: string | null;
   bodyHtml: string | null;
+  attachments: AttachmentInfo[] | null;
   bodyCachedAt: number | null;
 }
 
@@ -271,6 +273,7 @@ export function getEmailBody(db: CacheDb, folder: string, uid: number): CachedBo
     .select({
       bodyText: emails.bodyText,
       bodyHtml: emails.bodyHtml,
+      attachments: emails.attachmentsJson,
       bodyCachedAt: emails.bodyCachedAt,
     })
     .from(emails)
@@ -283,13 +286,14 @@ export function setEmailBody(
   db: CacheDb,
   folder: string,
   uid: number,
-  body: { text: string | null; html: string | null },
+  body: { text: string | null; html: string | null; attachments?: AttachmentInfo[] },
   nowMs: number,
 ): void {
   db.update(emails)
     .set({
       bodyText: body.text,
       bodyHtml: body.html,
+      attachmentsJson: body.attachments ?? [],
       bodyCachedAt: nowMs,
     })
     .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))

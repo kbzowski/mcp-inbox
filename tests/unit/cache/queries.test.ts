@@ -284,8 +284,16 @@ describe('cache queries', () => {
       expect(getEmailBody(cache.db, 'INBOX', 1)).toEqual({
         bodyText: 'hi',
         bodyHtml: '<p>hi</p>',
+        attachments: [],
         bodyCachedAt: 5_000,
       });
+    });
+
+    it('setEmailBody round-trips attachment metadata', () => {
+      const attachments = [{ filename: 'a.pdf', content_type: 'application/pdf', size_bytes: 9 }];
+      setEmailBody(cache.db, 'INBOX', 1, { text: null, html: null, attachments }, 5_000);
+
+      expect(getEmailBody(cache.db, 'INBOX', 1)?.attachments).toEqual(attachments);
     });
   });
 

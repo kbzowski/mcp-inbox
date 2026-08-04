@@ -33,6 +33,7 @@ describe('formatEmailListMarkdown', () => {
       envelopeJson: '{}',
       bodyText: null,
       bodyHtml: null,
+      attachmentsJson: null,
       modseq: 1,
       cachedAt: 0,
       bodyCachedAt: null,
