@@ -3,6 +3,11 @@ pre-commit:
   jobs:
     - name: oxfmt
       glob: '*.{ts,js,mjs,json}'
+      # oxfmt exits 2 rather than skipping when every staged file is one it
+      # ignores, which blocked commits that only touch a lockfile.
+      exclude:
+        - '**/package-lock.json'
+        - 'src/cache/migrations/**'
       run: npx oxfmt {staged_files}
       stage_fixed: true
 
