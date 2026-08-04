@@ -169,6 +169,26 @@ export function setEmailFlags(db: CacheDb, folder: string, uid: number, flags: s
     .run();
 }
 
+/** UIDs with no cached row are silently ignored. */
+export function setFlagsForUids(db: CacheDb, folder: string, next: Map<number, string[]>): void {
+  if (next.size === 0) return;
+  db.transaction((tx) => {
+    const rows = tx
+      .select({ uid: emails.uid, flags: emails.flags })
+      .from(emails)
+      .where(and(eq(emails.folder, folder), inArray(emails.uid, [...next.keys()])))
+      .all();
+    for (const row of rows) {
+      const flags = next.get(row.uid);
+      if (!flags || flagsEqual(row.flags, flags)) continue;
+      tx.update(emails)
+        .set({ flags })
+        .where(and(eq(emails.folder, folder), eq(emails.uid, row.uid)))
+        .run();
+    }
+  });
+}
+
 /**
  * Apply a flag-set mutation to each of the given UIDs. `mutate` receives
  * the current flags and returns the new flags. Can't be a single SQL

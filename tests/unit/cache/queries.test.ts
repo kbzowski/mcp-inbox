@@ -11,6 +11,7 @@ import {
   countEmailsInFolder,
   listCachedUidsForFolder,
   setEmailFlags,
+  setFlagsForUids,
   deleteEmail,
   deleteEmailsByFolder,
   deleteEmailsByUids,
@@ -244,6 +245,31 @@ describe('cache queries', () => {
     it('setEmailFlags replaces the flag set', () => {
       setEmailFlags(cache.db, 'INBOX', 1, ['\\Seen', '\\Flagged']);
       expect(getEmail(cache.db, 'INBOX', 1)?.flags).toEqual(['\\Seen', '\\Flagged']);
+    });
+
+    it('setFlagsForUids updates many rows at once', () => {
+      upsertEmail(cache.db, buildEmail({ uid: 2, flags: ['\\Seen'] }));
+      setFlagsForUids(
+        cache.db,
+        'INBOX',
+        new Map([
+          [1, ['\\Seen']],
+          [2, []],
+        ]),
+      );
+      expect(getEmail(cache.db, 'INBOX', 1)?.flags).toEqual(['\\Seen']);
+      expect(getEmail(cache.db, 'INBOX', 2)?.flags).toEqual([]);
+    });
+
+    it('setFlagsForUids ignores UIDs with no cached row', () => {
+      setFlagsForUids(cache.db, 'INBOX', new Map([[999, ['\\Seen']]]));
+      expect(getEmail(cache.db, 'INBOX', 999)).toBeUndefined();
+    });
+
+    it('setFlagsForUids leaves rows absent from the map untouched', () => {
+      upsertEmail(cache.db, buildEmail({ uid: 2, flags: ['\\Flagged'] }));
+      setFlagsForUids(cache.db, 'INBOX', new Map([[1, ['\\Seen']]]));
+      expect(getEmail(cache.db, 'INBOX', 2)?.flags).toEqual(['\\Flagged']);
     });
 
     it('body starts null, setEmailBody populates it', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MessageStructureObject } from 'imapflow';
-import { hasAttachments } from '../../../src/cache/sync';
+import { diffUids, hasAttachments } from '../../../src/cache/sync';
 
 /**
  * Build a minimal MessageStructureObject for tests. Only the fields the
@@ -12,6 +12,32 @@ function part(over: Partial<MessageStructureObject> = {}): MessageStructureObjec
     ...over,
   };
 }
+
+describe('diffUids', () => {
+  it('reports nothing to do for identical sets', () => {
+    expect(diffUids([1, 2, 3], [1, 2, 3])).toEqual({ missing: [], ghosts: [] });
+  });
+
+  it('treats an empty cache as every UID missing', () => {
+    expect(diffUids([], [4, 7, 9])).toEqual({ missing: [4, 7, 9], ghosts: [] });
+  });
+
+  it('fetches only the UIDs the cache has not seen', () => {
+    expect(diffUids([1, 2], [1, 2, 3, 4]).missing).toEqual([3, 4]);
+  });
+
+  it('evicts cached UIDs the server no longer has', () => {
+    expect(diffUids([1, 2, 3], [1, 3]).ghosts).toEqual([2]);
+  });
+
+  it('handles simultaneous additions and expunges', () => {
+    expect(diffUids([1, 2, 5], [2, 5, 8])).toEqual({ missing: [8], ghosts: [1] });
+  });
+
+  it('evicts everything when the server folder is empty', () => {
+    expect(diffUids([1, 2], [])).toEqual({ missing: [], ghosts: [1, 2] });
+  });
+});
 
 describe('hasAttachments', () => {
   it('returns false for undefined structure', () => {

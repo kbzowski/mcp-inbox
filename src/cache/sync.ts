@@ -7,6 +7,7 @@ import {
   deleteEmailsByUids,
   getFolder,
   listCachedUidsForFolder,
+  setFlagsForUids,
   upsertEmail,
   upsertFolder,
 } from './queries';
@@ -34,12 +35,11 @@ export interface SyncResult {
  *
  * Algorithm:
  *  1. SELECT the mailbox; read UIDVALIDITY, UIDNEXT, HIGHESTMODSEQ.
- *  2. If cached UIDVALIDITY differs from server's → wipe folder cache
- *     and do a full envelope fetch.
- *  3. If server supports CONDSTORE and we have a cached HIGHESTMODSEQ →
- *     fetch only messages with MODSEQ > cached.
- *  4. Otherwise fall back to a full fetch (Phase 3b defers the
- *     UID-diff fallback for CONDSTORE-less servers).
+ *  2. If cached UIDVALIDITY differs from server's → wipe folder cache.
+ *  3. SEARCH ALL for the server's UID set, and diff it against the cache:
+ *     evict what the server no longer has, fetch envelopes for what we
+ *     don't have yet.
+ *  4. Refresh flags over the rest, narrowed by CONDSTORE when available.
  *  5. Persist the new folder sync state.
  */
 export async function syncFolder(ctx: SyncContext, folderPath: string): Promise<SyncResult> {
@@ -86,6 +86,18 @@ export async function syncFolder(ctx: SyncContext, folderPath: string): Promise<
   }
 }
 
+export function diffUids(
+  cached: readonly number[],
+  server: readonly number[],
+): { missing: number[]; ghosts: number[] } {
+  const cachedSet = new Set(cached);
+  const serverSet = new Set(server);
+  return {
+    missing: server.filter((uid) => !cachedSet.has(uid)),
+    ghosts: cached.filter((uid) => !serverSet.has(uid)),
+  };
+}
+
 async function runSync(
   ctx: SyncContext,
   folderPath: string,
@@ -93,86 +105,48 @@ async function runSync(
   cached: ReturnType<typeof getFolder>,
   uidValidityChanged: boolean,
 ): Promise<{ syncType: SyncType; fetched: number }> {
-  // Full fetch when we have no cache, or when UIDVALIDITY invalidated it.
-  if (!cached || uidValidityChanged) {
-    const fetched = await fetchAndStoreRange(ctx, folderPath, '1:*');
-    return { syncType: 'full', fetched };
+  const coldStart = !cached || uidValidityChanged;
+
+  const searchResult = await ctx.imap.search({ all: true }, { uid: true });
+  const serverUids = Array.isArray(searchResult) ? searchResult : [];
+  const { missing, ghosts } = diffUids(listCachedUidsForFolder(ctx.db, folderPath), serverUids);
+
+  if (ghosts.length > 0) {
+    deleteEmailsByUids(ctx.db, folderPath, ghosts);
+    log.info('evicted ghost UIDs', { folder: folderPath, removed: ghosts.length });
   }
 
-  // CONDSTORE incremental path: fetch only messages whose MODSEQ advanced.
+  const fetched = missing.length > 0 ? await fetchEnvelopes(ctx, folderPath, missing) : 0;
+
   const serverModseq = box.highestModseq !== undefined ? Number(box.highestModseq) : null;
-  if (
-    serverModseq !== null &&
-    cached.highestModseq !== null &&
-    cached.highestModseq !== undefined
-  ) {
-    const fetched =
-      serverModseq === cached.highestModseq
-        ? 0
-        : await fetchAndStoreRange(ctx, folderPath, '1:*', BigInt(cached.highestModseq));
-    // Incremental fetch only surfaces messages whose MODSEQ advanced;
-    // messages deleted while we weren't connected don't come back in
-    // that set, so we reconcile UIDs against the server to drop ghosts.
-    await reconcileUids(ctx, folderPath);
-    return { syncType: serverModseq === cached.highestModseq ? 'skipped' : 'incremental', fetched };
+  const flagsUnchanged =
+    serverModseq !== null && cached?.highestModseq != null && serverModseq === cached.highestModseq;
+  if (!flagsUnchanged && serverUids.length > missing.length) {
+    await refreshFlags(ctx, folderPath, cached?.highestModseq ?? null);
   }
 
-  // No CONDSTORE - fall back to full fetch. The full fetch rewrites every
-  // envelope we care about, but we still need reconciliation to evict
-  // UIDs the server has expunged.
-  const fetched = await fetchAndStoreRange(ctx, folderPath, '1:*');
-  await reconcileUids(ctx, folderPath);
-  return { syncType: 'full', fetched };
+  if (coldStart) return { syncType: 'full', fetched };
+  if (fetched === 0 && ghosts.length === 0 && flagsUnchanged) {
+    return { syncType: 'skipped', fetched: 0 };
+  }
+  return { syncType: 'incremental', fetched };
 }
 
 /**
- * Drop cached emails whose UID is no longer present on the server.
- *
- * CONDSTORE `changedSince` fetch won't return messages that have been
- * expunged, and IDLE EXPUNGE notifications are only seen while we're
- * connected. So after every sync we ask the server for the UID set and
- * delete anything we have locally that isn't in it.
- *
- * `imap.search({ all: true }, { uid: true })` is a pure server-side
- * SEARCH - no envelopes fetched, no body traffic, so it stays cheap
- * even for folders with tens of thousands of messages.
+ * Envelopes are immutable, so only UIDs absent from the cache are fetched.
  */
-async function reconcileUids(ctx: SyncContext, folderPath: string): Promise<void> {
-  const cachedUids = listCachedUidsForFolder(ctx.db, folderPath);
-  if (cachedUids.length === 0) return;
-
-  const result = await ctx.imap.search({ all: true }, { uid: true });
-  const serverUids = new Set(Array.isArray(result) ? result : []);
-  const ghosts = cachedUids.filter((uid) => !serverUids.has(uid));
-  if (ghosts.length === 0) return;
-
-  deleteEmailsByUids(ctx.db, folderPath, ghosts);
-  log.info('reconciled ghost UIDs', { folder: folderPath, removed: ghosts.length });
-}
-
-/**
- * Fetch envelopes/flags for a UID range, optionally gated by CONDSTORE
- * `changedSince`, and upsert each into the cache.
- */
-async function fetchAndStoreRange(
+async function fetchEnvelopes(
   ctx: SyncContext,
   folderPath: string,
-  range: string,
-  changedSince?: bigint,
+  uids: number[],
 ): Promise<number> {
   const now = Date.now();
   let count = 0;
 
-  const options = changedSince !== undefined ? { uid: true, changedSince } : { uid: true };
   const iterator = ctx.imap.fetch(
-    range,
-    {
-      envelope: true,
-      flags: true,
-      internalDate: true,
-      bodyStructure: true,
-    },
-    options,
+    uids,
+    { envelope: true, flags: true, internalDate: true, bodyStructure: true },
+    { uid: true },
   );
 
   for await (const msg of iterator) {
@@ -184,6 +158,31 @@ async function fetchAndStoreRange(
   }
 
   return count;
+}
+
+/**
+ * Flags are the only mutable part of a cached envelope. CONDSTORE narrows
+ * this to rows whose MODSEQ advanced; without it a flags-only FETCH over
+ * the folder is still a fraction of an envelope + bodyStructure fetch.
+ */
+async function refreshFlags(
+  ctx: SyncContext,
+  folderPath: string,
+  cachedModseq: number | null,
+): Promise<void> {
+  const options =
+    cachedModseq !== null
+      ? { uid: true, changedSince: BigInt(cachedModseq) }
+      : { uid: true as const };
+
+  const next = new Map<number, string[]>();
+  for await (const msg of ctx.imap.fetch('1:*', { flags: true }, options)) {
+    if (typeof msg.uid === 'number' && msg.flags) {
+      next.set(msg.uid, Array.from(msg.flags));
+    }
+  }
+
+  setFlagsForUids(ctx.db, folderPath, next);
 }
 
 /**
