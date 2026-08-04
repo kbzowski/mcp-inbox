@@ -5,8 +5,7 @@ import { ImapError } from '../../errors/types';
 import { buildRawMessage } from '../../imap/mime-builder';
 import { deleteEmail } from '../../cache/queries';
 import { resolveSpecialFolder } from '../emails/shared';
-
-const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
 
 const Input = z.object({
   uid: z
@@ -22,6 +21,7 @@ const Input = z.object({
   bcc: AddressList.optional(),
   from: z.string().min(1).optional(),
   folder: z.string().min(1).optional(),
+  attachments: AttachmentList,
 });
 
 export const updateDraftTool = defineTool({
@@ -38,6 +38,7 @@ export const updateDraftTool = defineTool({
   inputSchema: Input,
   handler: async (args, ctx) => {
     const folder = await resolveSpecialFolder(ctx, '\\Drafts', args.folder);
+    const attachments = toMessageAttachments(args.attachments);
 
     const raw = await buildRawMessage({
       from: args.from ?? ctx.defaults.fromAddress,
@@ -47,6 +48,7 @@ export const updateDraftTool = defineTool({
       ...(args.bcc !== undefined && { bcc: args.bcc }),
       ...(args.body !== undefined && { text: args.body }),
       ...(args.html !== undefined && { html: args.html }),
+      ...(attachments !== undefined && { attachments }),
     });
 
     const imap = await ctx.imap.connection();

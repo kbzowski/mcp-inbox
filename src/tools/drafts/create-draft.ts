@@ -4,8 +4,7 @@ import { mapImapError } from '../../errors/mapper';
 import { ImapError } from '../../errors/types';
 import { buildRawMessage } from '../../imap/mime-builder';
 import { resolveSpecialFolder } from '../emails/shared';
-
-const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
 
 const Input = z.object({
   to: AddressList.describe('Recipient email address or array of addresses.'),
@@ -26,6 +25,7 @@ const Input = z.object({
     .min(1)
     .optional()
     .describe('Explicit Drafts folder. Auto-resolves via SPECIAL-USE when omitted.'),
+  attachments: AttachmentList,
 });
 
 export const createDraftTool = defineTool({
@@ -41,6 +41,7 @@ export const createDraftTool = defineTool({
   inputSchema: Input,
   handler: async (args, ctx) => {
     const folder = await resolveSpecialFolder(ctx, '\\Drafts', args.folder);
+    const attachments = toMessageAttachments(args.attachments);
 
     const raw = await buildRawMessage({
       from: args.from ?? ctx.defaults.fromAddress,
@@ -50,6 +51,7 @@ export const createDraftTool = defineTool({
       ...(args.bcc !== undefined && { bcc: args.bcc }),
       ...(args.body !== undefined && { text: args.body }),
       ...(args.html !== undefined && { html: args.html }),
+      ...(attachments !== undefined && { attachments }),
     });
 
     const imap = await ctx.imap.connection();

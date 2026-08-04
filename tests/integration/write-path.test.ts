@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { listEmailsTool } from '@/tools/emails/list-emails';
 import { getEmailTool } from '@/tools/emails/get-email';
 import { markReadTool, markUnreadTool } from '@/tools/emails/mark-read';
+import { setFlagsTool } from '@/tools/emails/set-flags';
+import { searchEmailsTool } from '@/tools/emails/search-emails';
+import { replyTool } from '@/tools/send/reply';
 import { moveToFolderTool } from '@/tools/emails/move-to-folder';
 import { deleteEmailTool } from '@/tools/emails/delete-email';
 import {
@@ -55,6 +58,113 @@ describeIfGreenmail('integration: write-path tools against GreenMail', () => {
     if (!row) throw new Error(`Seeded email "${subject}" not found in INBOX`);
     return row.uid;
   }
+
+  it('set_flags stars a message and search_emails finds it by flag', async () => {
+    const uid = await seedAndFindUid('star me');
+
+    const set = await setFlagsTool.handler(
+      { folder: 'INBOX', uids: [uid], add: ['\\Flagged'] },
+      harness.ctx,
+    );
+    expect(set.structuredContent).toMatchObject({ applied: true, added: ['\\Flagged'] });
+
+    const detail = await getEmailTool.handler(
+      { folder: 'INBOX', uid, max_staleness_seconds: 0, response_format: 'json' },
+      harness.ctx,
+    );
+    expect((detail.structuredContent as { flags: string[] }).flags).toContain('\\Flagged');
+
+    const found = await searchEmailsTool.handler(
+      {
+        folder: 'INBOX',
+        flagged: true,
+        limit: 20,
+        max_staleness_seconds: 0,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+    const hits = (found.structuredContent as { emails: { uid: number }[] }).emails;
+    expect(hits.map((e) => e.uid)).toContain(uid);
+
+    await setFlagsTool.handler(
+      { folder: 'INBOX', uids: [uid], remove: ['\\Flagged'] },
+      harness.ctx,
+    );
+
+    const gone = await searchEmailsTool.handler(
+      {
+        folder: 'INBOX',
+        flagged: true,
+        limit: 20,
+        max_staleness_seconds: 0,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+    expect(
+      (gone.structuredContent as { emails: { uid: number }[] }).emails.map((e) => e.uid),
+    ).not.toContain(uid);
+  });
+
+  it('reply marks the original as answered', async () => {
+    const uid = await seedAndFindUid('answer me');
+
+    const replied = await replyTool.handler(
+      { folder: 'INBOX', uid, body: 'On it.', reply_all: false, mark_answered: true },
+      harness.ctx,
+    );
+    expect(replied.structuredContent).toMatchObject({
+      original_marked_answered: true,
+      mark_answered_error: null,
+    });
+
+    const detail = await getEmailTool.handler(
+      { folder: 'INBOX', uid, max_staleness_seconds: 0, response_format: 'json' },
+      harness.ctx,
+    );
+    expect((detail.structuredContent as { flags: string[] }).flags).toContain('\\Answered');
+  });
+
+  it('reply carries the original References chain forward', async () => {
+    const chain = ['<root@thread.test>', '<second@thread.test>'];
+    await seedEmail({
+      host,
+      smtpPort,
+      from: 'sender@localhost',
+      to: 'test@localhost',
+      subject: 'mid-thread message',
+      text: 'third in the thread',
+      inReplyTo: chain[1]!,
+      references: chain,
+    });
+
+    const list = await listEmailsTool.handler(
+      {
+        folder: 'INBOX',
+        limit: 100,
+        offset: 0,
+        unseen_only: false,
+        max_staleness_seconds: 0,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+    const row = (
+      list.structuredContent as { emails: { uid: number; subject: string | null }[] }
+    ).emails.find((e) => e.subject === 'mid-thread message');
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    const replied = await replyTool.handler(
+      { folder: 'INBOX', uid: row.uid, body: 'fourth', reply_all: false, mark_answered: false },
+      harness.ctx,
+    );
+
+    const refs = (replied.structuredContent as { references: string[] }).references;
+    expect(refs.slice(0, 2)).toEqual(chain);
+    expect(refs).toHaveLength(3);
+  });
 
   it('mark_read flips the cached \\Seen flag through IMAP', async () => {
     const uid = await seedAndFindUid('mark-read round-trip');

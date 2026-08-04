@@ -9,6 +9,18 @@ import type Mail from 'nodemailer/lib/mailer/index.js';
  * RFC 2047 encoded-word for non-ASCII headers, RFC 5322 line folding,
  * multipart boundaries, and Message-ID generation automatically.
  */
+export interface MessageAttachment {
+  filename: string;
+  content: Buffer;
+  /** Omit to let nodemailer sniff the type from `filename`. */
+  contentType?: string;
+  /**
+   * nodemailer defaults `message/*` parts to `inline`, which makes clients
+   * expand a forwarded message instead of offering it as a saveable file.
+   */
+  contentDisposition?: 'attachment' | 'inline';
+}
+
 export interface BuildMessageInput {
   from: string;
   to: string | string[];
@@ -22,6 +34,7 @@ export interface BuildMessageInput {
   references?: string | string[];
   /** Optional extra headers (e.g. X-Mailer). */
   headers?: Record<string, string>;
+  attachments?: MessageAttachment[];
 }
 
 /**
@@ -45,6 +58,7 @@ export async function buildRawMessage(input: BuildMessageInput): Promise<Buffer>
     ...(input.inReplyTo !== undefined && { inReplyTo: input.inReplyTo }),
     ...(input.references !== undefined && { references: input.references }),
     ...(input.headers !== undefined && { headers: input.headers }),
+    ...(input.attachments !== undefined && { attachments: input.attachments }),
   };
 
   const composer = new MailComposer(options);

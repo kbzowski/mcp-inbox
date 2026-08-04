@@ -67,8 +67,7 @@ export async function resolveSpecialFolder(
   if (explicitOverride) return explicitOverride;
 
   try {
-    const imap = await ctx.imap.connection();
-    const list = await imap.list();
+    const list = await ctx.imap.folderList();
     const path = findSpecialFolder(list, attr);
     if (!path) {
       throw new ImapError(
@@ -85,29 +84,18 @@ export async function resolveSpecialFolder(
 
 export type { AttachmentInfo };
 
-/**
- * Fetch a message's body and attachment metadata, caching both on first
- * access. Message bodies are immutable, so a cached entry is served
- * without touching the network - no staleness window applies.
- */
-export async function ensureBodyCached(
-  ctx: ToolContext,
-  folder: string,
-  uid: number,
-): Promise<{
+export interface CachedBodyResult {
   bodyText: string | null;
   bodyHtml: string | null;
   attachments: AttachmentInfo[];
-}> {
-  const cached = getEmailBody(ctx.db, folder, uid);
-  if (cached?.bodyCachedAt != null) {
-    return {
-      bodyText: cached.bodyText,
-      bodyHtml: cached.bodyHtml,
-      attachments: cached.attachments ?? [],
-    };
-  }
+}
 
+/** Fetch a message's raw RFC 2822 source. Always hits the network. */
+export async function fetchRawSource(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+): Promise<Buffer> {
   const imap = await ctx.imap.connection();
   const lock = await imap.getMailboxLock(folder);
   try {
@@ -118,25 +106,78 @@ export async function ensureBodyCached(
         `Message with UID ${String(uid)} was not found in ${folder}. It may have been moved or deleted.`,
       );
     }
-    const parsed = await simpleParser(msg.source);
-    const bodyText = parsed.text ?? null;
-    const bodyHtml = typeof parsed.html === 'string' ? parsed.html : null;
-
-    const attachments: AttachmentInfo[] = (parsed.attachments ?? []).map((a) => ({
-      filename: a.filename ?? null,
-      content_type: a.contentType ?? 'application/octet-stream',
-      size_bytes: typeof a.size === 'number' ? a.size : 0,
-    }));
-
-    setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml, attachments }, ctx.now());
-
-    return { bodyText, bodyHtml, attachments };
+    return msg.source;
   } catch (err) {
     if (err instanceof ImapError) throw err;
     throw mapImapError(err);
   } finally {
     lock.release();
   }
+}
+
+async function cacheParsedBody(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+  source: Buffer,
+): Promise<CachedBodyResult> {
+  const parsed = await simpleParser(source);
+  const bodyText = parsed.text ?? null;
+  const bodyHtml = typeof parsed.html === 'string' ? parsed.html : null;
+
+  const attachments: AttachmentInfo[] = (parsed.attachments ?? []).map((a) => ({
+    filename: a.filename ?? null,
+    content_type: a.contentType ?? 'application/octet-stream',
+    size_bytes: typeof a.size === 'number' ? a.size : 0,
+  }));
+
+  setEmailBody(ctx.db, folder, uid, { text: bodyText, html: bodyHtml, attachments }, ctx.now());
+
+  return { bodyText, bodyHtml, attachments };
+}
+
+function readCachedBody(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+): CachedBodyResult | undefined {
+  const cached = getEmailBody(ctx.db, folder, uid);
+  if (cached?.bodyCachedAt == null) return undefined;
+  return {
+    bodyText: cached.bodyText,
+    bodyHtml: cached.bodyHtml,
+    attachments: cached.attachments ?? [],
+  };
+}
+
+/**
+ * Fetch a message's body and attachment metadata, caching both on first
+ * access. Message bodies are immutable, so a cached entry is served
+ * without touching the network - no staleness window applies.
+ */
+export async function ensureBodyCached(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+): Promise<CachedBodyResult> {
+  const cached = readCachedBody(ctx, folder, uid);
+  if (cached) return cached;
+  return await cacheParsedBody(ctx, folder, uid, await fetchRawSource(ctx, folder, uid));
+}
+
+/**
+ * Like `ensureBodyCached`, but also returns the raw source. Callers that
+ * need the bytes (forwarding the original verbatim) get them in the same
+ * single fetch instead of paying a second round-trip.
+ */
+export async function ensureBodyAndSource(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+): Promise<{ body: CachedBodyResult; source: Buffer }> {
+  const source = await fetchRawSource(ctx, folder, uid);
+  const cached = readCachedBody(ctx, folder, uid);
+  return { body: cached ?? (await cacheParsedBody(ctx, folder, uid, source)), source };
 }
 
 /**

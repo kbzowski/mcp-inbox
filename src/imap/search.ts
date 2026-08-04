@@ -18,6 +18,12 @@ export interface EmailSearchCriteria {
   body?: string | undefined;
   /** If true, only messages without `\Seen`. If undefined/false, no filter. */
   unseen?: boolean | undefined;
+  /**
+   * Unlike `unseen`, these are three-state: true matches flagged/answered,
+   * false matches explicitly unflagged/unanswered, undefined does not filter.
+   */
+  flagged?: boolean | undefined;
+  answered?: boolean | undefined;
   /** Only messages received on/after this date. */
   since?: Date | undefined;
   /** Only messages received before this date. */
@@ -53,6 +59,8 @@ export function buildImapSearch(c: EmailSearchCriteria): SearchObject {
   if (c.since) q.since = c.since;
   if (c.before) q.before = c.before;
   if (c.unseen === true) q.seen = false;
+  if (c.flagged !== undefined) q.flagged = c.flagged;
+  if (c.answered !== undefined) q.answered = c.answered;
   if (c.larger_than_bytes !== undefined) q.larger = c.larger_than_bytes;
   if (c.smaller_than_bytes !== undefined) q.smaller = c.smaller_than_bytes;
   if (c.or !== undefined && c.or.length > 0) q.or = c.or.map(buildImapSearch);

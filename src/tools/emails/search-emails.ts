@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { defineTool } from '../define-tool';
 import { mapImapError } from '../../errors/mapper';
 import { buildImapSearch, type EmailSearchCriteria } from '../../imap/search';
-import { getEmail, upsertEmail } from '../../cache/queries';
+import { getEmailsByUids, upsertEmails } from '../../cache/queries';
 import { messageToInsert } from '../../cache/sync';
-import type { Email } from '../../cache/schema';
+import type { Email, EmailInsert } from '../../cache/schema';
 import { formatEmailListMarkdown } from '../../formatters/markdown';
 import { projectEmailSummary, syncIfStale } from './shared';
 
@@ -21,6 +21,8 @@ const Criteria: z.ZodType<EmailSearchCriteria> = z.lazy(() =>
     to: z.string().min(1).optional(),
     body: z.string().min(1).optional(),
     unseen: z.boolean().optional(),
+    flagged: z.boolean().optional(),
+    answered: z.boolean().optional(),
     since: z.coerce.date().optional(),
     before: z.coerce.date().optional(),
     larger_than_bytes: z.number().int().positive().optional(),
@@ -38,6 +40,14 @@ const Input = z
     to: z.string().min(1).optional(),
     body: z.string().min(1).optional(),
     unseen: z.boolean().optional(),
+    flagged: z
+      .boolean()
+      .optional()
+      .describe('true = starred only, false = unstarred only, omit for no filter.'),
+    answered: z
+      .boolean()
+      .optional()
+      .describe('true = replied-to only, false = not-replied-to only, omit for no filter.'),
     since_date: z.string().date().optional(),
     before_date: z.string().date().optional(),
     larger_than_bytes: z
@@ -76,17 +86,21 @@ const Input = z
   })
   .refine(
     (v) =>
-      v.subject ??
-      v.from ??
-      v.to ??
-      v.body ??
-      v.unseen ??
-      v.since_date ??
-      v.before_date ??
-      v.larger_than_bytes ??
-      v.smaller_than_bytes ??
-      v.or ??
-      v.not,
+      [
+        v.subject,
+        v.from,
+        v.to,
+        v.body,
+        v.unseen,
+        v.flagged,
+        v.answered,
+        v.since_date,
+        v.before_date,
+        v.larger_than_bytes,
+        v.smaller_than_bytes,
+        v.or,
+        v.not,
+      ].some((c) => c !== undefined),
     { message: 'At least one search criterion must be provided.' },
   );
 
@@ -110,6 +124,8 @@ export const searchEmailsTool = defineTool({
       ...(args.to !== undefined && { to: args.to }),
       ...(args.body !== undefined && { body: args.body }),
       ...(args.unseen !== undefined && { unseen: args.unseen }),
+      ...(args.flagged !== undefined && { flagged: args.flagged }),
+      ...(args.answered !== undefined && { answered: args.answered }),
       ...(args.since_date !== undefined && { since: new Date(args.since_date) }),
       ...(args.before_date !== undefined && { before: new Date(args.before_date) }),
       ...(args.larger_than_bytes !== undefined && { larger_than_bytes: args.larger_than_bytes }),
@@ -124,6 +140,8 @@ export const searchEmailsTool = defineTool({
     const imap = await ctx.imap.connection();
     const lock = await imap.getMailboxLock(args.folder);
     let topUids: number[];
+    let cached: Map<number, Email>;
+    let missingUids: number[];
     try {
       const result = await imap.search(criteria, { uid: true });
       matchingUids = Array.isArray(result) ? result : [];
@@ -135,17 +153,20 @@ export const searchEmailsTool = defineTool({
       // locally gets its envelope fetched now. Prevents the silent-drop
       // where `returned` would be smaller than `total_matches` just
       // because the cache hadn't seen those UIDs yet.
-      const missingUids = topUids.filter((uid) => getEmail(ctx.db, args.folder, uid) === undefined);
+      cached = getEmailsByUids(ctx.db, args.folder, topUids);
+      missingUids = topUids.filter((uid) => !cached.has(uid));
       if (missingUids.length > 0) {
         const cachedAt = ctx.now();
+        const fetched: EmailInsert[] = [];
         for await (const msg of imap.fetch(
           missingUids,
           { envelope: true, flags: true, internalDate: true, bodyStructure: true },
           { uid: true },
         )) {
           const insert = messageToInsert(args.folder, msg, cachedAt);
-          if (insert) upsertEmail(ctx.db, insert);
+          if (insert) fetched.push(insert);
         }
+        upsertEmails(ctx.db, fetched);
       }
     } catch (err) {
       lock.release();
@@ -153,11 +174,12 @@ export const searchEmailsTool = defineTool({
     }
     lock.release();
 
-    const rows: Email[] = [];
-    for (const uid of topUids) {
-      const row = getEmail(ctx.db, args.folder, uid);
-      if (row) rows.push(row);
+    if (missingUids.length > 0) {
+      for (const [uid, row] of getEmailsByUids(ctx.db, args.folder, missingUids)) {
+        cached.set(uid, row);
+      }
     }
+    const rows = topUids.map((uid) => cached.get(uid)).filter((r): r is Email => r !== undefined);
 
     const structured = {
       folder: args.folder,
@@ -170,6 +192,8 @@ export const searchEmailsTool = defineTool({
         to: args.to ?? null,
         body: args.body ?? null,
         unseen: args.unseen ?? null,
+        flagged: args.flagged ?? null,
+        answered: args.answered ?? null,
         since_date: args.since_date ?? null,
         before_date: args.before_date ?? null,
       },

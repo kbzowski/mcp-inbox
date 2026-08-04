@@ -147,6 +147,52 @@ describeIfGreenmail('integration: compose/send/attachment against GreenMail', ()
     expect(sentEmails.find((e) => e.subject === 'integration send-email')).toBeDefined();
   });
 
+  it('send_email delivers an outbound attachment byte-for-byte', async () => {
+    const bytes = Buffer.from('%PDF-1.4\n% outbound attachment\n%%EOF\n');
+    const sent = await sendEmailTool.handler(
+      {
+        to: 'test@localhost',
+        subject: 'outbound attachment',
+        body: 'see attached',
+        attachments: [
+          {
+            filename: 'outbound.pdf',
+            content_base64: bytes.toString('base64'),
+            content_type: 'application/pdf',
+          },
+        ],
+      },
+      harness.ctx,
+    );
+    expect(sent.isError).not.toBe(true);
+
+    const list = await listEmailsTool.handler(
+      {
+        folder: 'INBOX',
+        limit: 100,
+        offset: 0,
+        unseen_only: false,
+        max_staleness_seconds: 0,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+    const row = (
+      list.structuredContent as { emails: { uid: number; subject: string | null }[] }
+    ).emails.find((e) => e.subject === 'outbound attachment');
+    expect(row).toBeDefined();
+    if (!row) return;
+
+    const att = await getAttachmentTool.handler(
+      { folder: 'INBOX', uid: row.uid, filename: 'outbound.pdf', max_inline_mb: 5 },
+      harness.ctx,
+    );
+    expect(att.isError).not.toBe(true);
+    const attBody = att.structuredContent as { content_type: string; content_base64: string };
+    expect(attBody.content_type).toContain('pdf');
+    expect(Buffer.from(attBody.content_base64, 'base64').equals(bytes)).toBe(true);
+  });
+
   it('get_attachment downloads inline base64 bytes of a real attachment', async () => {
     const pdfBytes = Buffer.from('%PDF-1.4\n% integration test body\n%%EOF\n');
     await seedEmail({

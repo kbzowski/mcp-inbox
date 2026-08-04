@@ -1,51 +1,24 @@
 import { z } from 'zod';
 import { defineTool, type ToolContext } from '../define-tool';
-import { mapImapError } from '../../errors/mapper';
-import { getEmail, setEmailFlags } from '../../cache/queries';
+import { applyFlags } from './flags';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the message.'),
   uid: z.number().int().positive().describe('IMAP UID of the message. UIDs are folder-scoped.'),
 });
 
-/**
- * Add or remove the \Seen flag. Idempotent on both sides: marking an
- * already-read message read again is a no-op on the server, same for
- * marking unread. The cache mirrors the server state through a
- * write-through update.
- */
-async function updateSeenFlag(
+function updateSeenFlag(
   ctx: ToolContext,
   folder: string,
   uid: number,
   want: 'add' | 'remove',
-): Promise<void> {
-  const imap = await ctx.imap.connection();
-  const lock = await imap.getMailboxLock(folder);
-  try {
-    if (want === 'add') {
-      await imap.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
-    } else {
-      await imap.messageFlagsRemove(String(uid), ['\\Seen'], { uid: true });
-    }
-  } catch (err) {
-    throw mapImapError(err);
-  } finally {
-    lock.release();
-  }
-
-  // Write-through: mirror the server state without waiting for the next sync.
-  const cached = getEmail(ctx.db, folder, uid);
-  if (!cached) return;
-  const next =
-    want === 'add'
-      ? cached.flags.includes('\\Seen')
-        ? cached.flags
-        : [...cached.flags, '\\Seen']
-      : cached.flags.filter((f) => f !== '\\Seen');
-  if (next !== cached.flags) {
-    setEmailFlags(ctx.db, folder, uid, next);
-  }
+): Promise<boolean> {
+  return applyFlags(
+    ctx,
+    folder,
+    [uid],
+    want === 'add' ? { add: ['\\Seen'] } : { remove: ['\\Seen'] },
+  );
 }
 
 export const markReadTool = defineTool({

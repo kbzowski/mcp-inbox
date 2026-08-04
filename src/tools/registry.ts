@@ -6,6 +6,7 @@ import { getEmailTool } from './emails/get-email';
 import { searchEmailsTool } from './emails/search-emails';
 import { markReadTool, markUnreadTool } from './emails/mark-read';
 import { markReadMultipleTool, markUnreadMultipleTool } from './emails/mark-read-multiple';
+import { setFlagsTool } from './emails/set-flags';
 import { moveToFolderTool } from './emails/move-to-folder';
 import { moveMultipleTool } from './emails/move-multiple';
 import { deleteEmailTool } from './emails/delete-email';
@@ -37,6 +38,7 @@ export const tools: readonly ToolDefinition[] = [
   // Write (flag + move + delete)
   markReadTool,
   markUnreadTool,
+  setFlagsTool,
   moveToFolderTool,
   deleteEmailTool,
   // Bulk variants of the same (one IMAP round-trip for N UIDs)

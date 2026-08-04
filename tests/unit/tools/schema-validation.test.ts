@@ -8,6 +8,7 @@ import {
   markReadMultipleTool,
   markUnreadMultipleTool,
 } from '../../../src/tools/emails/mark-read-multiple';
+import { setFlagsTool } from '../../../src/tools/emails/set-flags';
 import { moveToFolderTool } from '../../../src/tools/emails/move-to-folder';
 import { moveMultipleTool } from '../../../src/tools/emails/move-multiple';
 import { deleteEmailTool } from '../../../src/tools/emails/delete-email';
@@ -69,6 +70,68 @@ describe('imap_search_emails input schema', () => {
       since_date: 'yesterday',
     });
     expect(r.success).toBe(false);
+  });
+
+  it('accepts flagged / answered as the only criterion', () => {
+    expect(searchEmailsTool.inputSchema.safeParse({ folder: 'INBOX', flagged: true }).success).toBe(
+      true,
+    );
+    expect(
+      searchEmailsTool.inputSchema.safeParse({ folder: 'INBOX', answered: true }).success,
+    ).toBe(true);
+  });
+
+  it('accepts a false boolean as the only criterion', () => {
+    // The refine used to be a `??` chain, which read `false` as "no criterion
+    // given" and rejected legal queries.
+    for (const criterion of [{ unseen: false }, { flagged: false }, { answered: false }]) {
+      const r = searchEmailsTool.inputSchema.safeParse({ folder: 'INBOX', ...criterion });
+      expect(r.success, JSON.stringify(criterion)).toBe(true);
+    }
+  });
+});
+
+describe('imap_set_flags input schema', () => {
+  const base = { folder: 'INBOX', uids: [1, 2] };
+
+  it('requires at least one of add / remove', () => {
+    expect(setFlagsTool.inputSchema.safeParse(base).success).toBe(false);
+    expect(setFlagsTool.inputSchema.safeParse({ ...base, add: [] }).success).toBe(false);
+    expect(setFlagsTool.inputSchema.safeParse({ ...base, add: ['\\Flagged'] }).success).toBe(true);
+    expect(setFlagsTool.inputSchema.safeParse({ ...base, remove: ['\\Flagged'] }).success).toBe(
+      true,
+    );
+  });
+
+  it('rejects a flag appearing in both add and remove', () => {
+    const r = setFlagsTool.inputSchema.safeParse({
+      ...base,
+      add: ['\\Flagged'],
+      remove: ['\\Flagged'],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('allows only \\Flagged and \\Answered', () => {
+    for (const flag of ['\\Deleted', '\\Draft', '\\Seen', 'Todo', '$Important']) {
+      const r = setFlagsTool.inputSchema.safeParse({ ...base, add: [flag] });
+      expect(r.success, flag).toBe(false);
+    }
+  });
+
+  it('caps the batch at 500 UIDs and rejects an empty list', () => {
+    const uids = Array.from({ length: 501 }, (_, i) => i + 1);
+    expect(setFlagsTool.inputSchema.safeParse({ ...base, uids, add: ['\\Flagged'] }).success).toBe(
+      false,
+    );
+    expect(
+      setFlagsTool.inputSchema.safeParse({ ...base, uids: [], add: ['\\Flagged'] }).success,
+    ).toBe(false);
+  });
+
+  it('is idempotent and non-destructive', () => {
+    expect(setFlagsTool.annotations.idempotentHint).toBe(true);
+    expect(setFlagsTool.annotations.destructiveHint).toBe(false);
   });
 });
 
@@ -187,6 +250,44 @@ describe('imap_update_draft input schema', () => {
   });
 });
 
+function withAttachments(attachments: unknown[]) {
+  return { to: 'x@y', subject: 's', uid: 1, folder: 'INBOX', attachments };
+}
+
+describe('attachments input schema', () => {
+  const valid = { filename: 'invoice.pdf', content_base64: Buffer.from('hi').toString('base64') };
+
+  const composeTools = [
+    ['imap_send_email', sendEmailTool],
+    ['imap_reply', replyTool],
+    ['imap_forward', forwardTool],
+    ['imap_create_draft', createDraftTool],
+    ['imap_update_draft', updateDraftTool],
+  ] as const;
+
+  for (const [name, tool] of composeTools) {
+    it(`${name} accepts a valid attachment`, () => {
+      expect(tool.inputSchema.safeParse(withAttachments([valid])).success).toBe(true);
+    });
+
+    it(`${name} rejects a non-base64 payload`, () => {
+      const r = tool.inputSchema.safeParse(
+        withAttachments([{ ...valid, content_base64: 'not base64!!' }]),
+      );
+      expect(r.success).toBe(false);
+    });
+
+    it(`${name} rejects an empty filename`, () => {
+      const r = tool.inputSchema.safeParse(withAttachments([{ ...valid, filename: '' }]));
+      expect(r.success).toBe(false);
+    });
+  }
+
+  it('omitting attachments stays valid', () => {
+    expect(sendEmailTool.inputSchema.safeParse({ to: 'x@y', subject: 's' }).success).toBe(true);
+  });
+});
+
 describe('send tool annotations', () => {
   it('all four send tools are marked destructive (outbound = irreversible)', () => {
     for (const tool of [sendEmailTool, sendDraftTool, replyTool, forwardTool]) {
@@ -215,6 +316,12 @@ describe('imap_reply input schema', () => {
     const r = replyTool.inputSchema.safeParse({ folder: 'INBOX', uid: 1 });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.reply_all).toBe(false);
+  });
+
+  it('mark_answered defaults to true', () => {
+    const r = replyTool.inputSchema.safeParse({ folder: 'INBOX', uid: 1 });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.mark_answered).toBe(true);
   });
 });
 

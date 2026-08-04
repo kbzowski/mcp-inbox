@@ -25,6 +25,7 @@ describe('tool registry', () => {
       'imap_search_emails',
       'imap_send_draft',
       'imap_send_email',
+      'imap_set_flags',
       'imap_update_draft',
     ]);
   });

@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import { defineTool } from '../define-tool';
 import { buildRawMessage } from '../../imap/mime-builder';
-import { ensureBodyCached, ensureEnvelopeCached } from '../emails/shared';
+import { ensureBodyAndSource, ensureEnvelopeCached } from '../emails/shared';
 import { flattenCompose, sendRawAndAppendSent } from './shared';
-
-const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder of the original message.'),
@@ -27,12 +26,15 @@ const Input = z.object({
     .describe(
       'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
     ),
+  attachments: AttachmentList.describe(
+    'Extra files to add. The original message is always attached on top of these.',
+  ),
 });
 
 export const forwardTool = defineTool({
   name: 'imap_forward',
   description:
-    'Forward an existing message to new recipients. Subject gets a "Fwd: " prefix. The forwarded message is quoted inline with a standard "Begin forwarded message" header. Optional `body` is prepended above the quote.',
+    'Forward an existing message to new recipients. Subject gets a "Fwd: " prefix. The forwarded message is quoted inline with a standard "Begin forwarded message" header, and the untouched original is attached as a .eml file so attachments, signatures and DKIM survive. Optional `body` is prepended above the quote.',
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -47,7 +49,7 @@ export const forwardTool = defineTool({
       args.uid,
       args.max_staleness_seconds,
     );
-    const body = await ensureBodyCached(ctx, args.folder, args.uid);
+    const { body, source } = await ensureBodyAndSource(ctx, args.folder, args.uid);
 
     const compose = flattenCompose({
       ...(args.from !== undefined && { from: args.from }),
@@ -91,6 +93,15 @@ export const forwardTool = defineTool({
           '</p>' +
           body.bodyHtml,
       }),
+      attachments: [
+        {
+          filename: emlFilename(original.subject),
+          content: source,
+          contentType: 'message/rfc822',
+          contentDisposition: 'attachment',
+        },
+        ...(toMessageAttachments(args.attachments) ?? []),
+      ],
     });
 
     const envelope: { from: string; to: string[]; cc?: string[]; bcc?: string[] } = {
@@ -116,6 +127,7 @@ export const forwardTool = defineTool({
         subject,
         forwarded_from_folder: args.folder,
         forwarded_uid: args.uid,
+        original_attached: true,
         message_id: result.messageId,
         sent_folder: result.sentFolder,
         sent_save_error: result.sentSaveError,
@@ -129,6 +141,17 @@ function prefixSubject(subject: string, prefix: string): string {
   return trimmed.toLowerCase().startsWith(prefix.toLowerCase().trim())
     ? trimmed
     : `${prefix}${trimmed}`;
+}
+
+export function emlFilename(subject: string | null): string {
+  const safe = (subject ?? '')
+    .replace(/\p{Cc}/gu, ' ')
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80)
+    .trim();
+  return `${safe === '' ? 'forwarded-message' : safe}.eml`;
 }
 
 function escapeHtml(s: string): string {

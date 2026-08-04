@@ -30,6 +30,17 @@ describe('buildImapSearch', () => {
     expect(buildImapSearch({ unseen: false })).toEqual({ all: true });
   });
 
+  it('maps flagged/answered=true straight through', () => {
+    expect(buildImapSearch({ flagged: true })).toEqual({ flagged: true });
+    expect(buildImapSearch({ answered: true })).toEqual({ answered: true });
+  });
+
+  it('treats flagged/answered=false as a real filter, unlike unseen', () => {
+    // IMAP has UNFLAGGED and UNANSWERED keys, so false is meaningful here.
+    expect(buildImapSearch({ flagged: false })).toEqual({ flagged: false });
+    expect(buildImapSearch({ answered: false })).toEqual({ answered: false });
+  });
+
   it('combines unseen with since (fixes the v1 filter-overwrite bug)', () => {
     // In v1 index.js, since_date overwrote unseen. Here both must coexist.
     const since = new Date('2026-04-01T00:00:00Z');

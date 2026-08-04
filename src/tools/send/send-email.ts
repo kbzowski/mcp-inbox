@@ -2,8 +2,7 @@ import { z } from 'zod';
 import { defineTool } from '../define-tool';
 import { buildRawMessage } from '../../imap/mime-builder';
 import { flattenCompose, sendRawAndAppendSent } from './shared';
-
-const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
 
 const Input = z.object({
   to: AddressList.describe('Recipient email address or array of addresses.'),
@@ -19,12 +18,13 @@ const Input = z.object({
     .describe(
       'Sender address. Defaults to IMAP_USER. Providers like Gmail and Fastmail reject mismatched From unless the address is a verified alias.',
     ),
+  attachments: AttachmentList,
 });
 
 export const sendEmailTool = defineTool({
   name: 'imap_send_email',
   description:
-    "Send an email via SMTP and append a copy to the Sent folder so it appears in the user mail client. Non-ASCII subjects, multipart text+HTML bodies, and international recipient lists all work through nodemailer's RFC 2822 builder.",
+    "Send an email via SMTP and append a copy to the Sent folder so it appears in the user mail client. Non-ASCII subjects, multipart text+HTML bodies, international recipient lists, and base64 attachments all work through nodemailer's RFC 2822 builder.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: true,
@@ -40,6 +40,7 @@ export const sendEmailTool = defineTool({
       ...(args.bcc !== undefined && { bcc: args.bcc }),
     });
     const fromAddress = compose.fromOrDefault(ctx.defaults.fromAddress);
+    const attachments = toMessageAttachments(args.attachments);
 
     const raw = await buildRawMessage({
       from: fromAddress,
@@ -49,6 +50,7 @@ export const sendEmailTool = defineTool({
       ...(args.bcc !== undefined && { bcc: args.bcc }),
       ...(args.body !== undefined && { text: args.body }),
       ...(args.html !== undefined && { html: args.html }),
+      ...(attachments !== undefined && { attachments }),
     });
 
     const envelope: { from: string; to: string[]; cc?: string[]; bcc?: string[] } = {

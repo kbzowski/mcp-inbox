@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { defineTool } from '../define-tool';
+import { defineTool, type ToolContext } from '../define-tool';
 import { buildRawMessage } from '../../imap/mime-builder';
 import { ensureEnvelopeCached } from '../emails/shared';
+import { applyFlags } from '../emails/flags';
 import { flattenCompose, sendRawAndAppendSent } from './shared';
-
-const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder of the original message.'),
@@ -27,6 +27,13 @@ const Input = z.object({
     .optional()
     .describe(
       'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+    ),
+  attachments: AttachmentList,
+  mark_answered: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Set \\Answered on the original after sending, so the thread shows as replied in the user mail client. Never fails the send - problems are reported in mark_answered_error.',
     ),
 });
 
@@ -58,7 +65,11 @@ export const replyTool = defineTool({
     const from = args.from ?? ctx.defaults.fromAddress;
 
     const subject = prefixSubject(original.subject ?? '', 'Re: ');
-    const references = buildReferences(parsedEnvelope);
+    const references = mergeReferences(
+      await fetchReferencesHeader(ctx, args.folder, args.uid),
+      parsedEnvelope.messageId,
+    );
+    const attachments = toMessageAttachments(args.attachments);
 
     const raw = await buildRawMessage({
       from,
@@ -72,6 +83,7 @@ export const replyTool = defineTool({
         inReplyTo: parsedEnvelope.messageId,
       }),
       ...(references.length > 0 && { references }),
+      ...(attachments !== undefined && { attachments }),
     });
 
     const envelope: { from: string; to: string[]; cc?: string[]; bcc?: string[] } = {
@@ -82,11 +94,34 @@ export const replyTool = defineTool({
     };
     const result = await sendRawAndAppendSent(ctx, raw, envelope);
 
+    // Best-effort, exactly like the Sent-folder append: the reply is already
+    // delivered, and reporting a flag stumble as a failure would make the
+    // caller send it twice.
+    let originalMarkedAnswered = false;
+    let markAnsweredError: string | null = null;
+    if (args.mark_answered) {
+      try {
+        originalMarkedAnswered = await applyFlags(ctx, args.folder, [args.uid], {
+          add: ['\\Answered'],
+        });
+        if (!originalMarkedAnswered) {
+          markAnsweredError = `Server did not apply \\Answered to UID ${String(args.uid)} in ${args.folder}.`;
+        }
+      } catch (err) {
+        markAnsweredError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    const summary = `Replied to "${original.subject ?? '(no subject)'}" (UID ${String(args.uid)}). Sent to ${to.join(', ')}${cc.length > 0 ? `, cc: ${cc.join(', ')}` : ''}.`;
+
     return {
       content: [
         {
           type: 'text',
-          text: `Replied to "${original.subject ?? '(no subject)'}" (UID ${String(args.uid)}). Sent to ${to.join(', ')}${cc.length > 0 ? `, cc: ${cc.join(', ')}` : ''}.`,
+          text:
+            markAnsweredError !== null
+              ? `${summary} Warning: could not mark the original as answered: ${markAnsweredError}`
+              : summary,
         },
       ],
       structuredContent: {
@@ -100,6 +135,8 @@ export const replyTool = defineTool({
         message_id: result.messageId,
         sent_folder: result.sentFolder,
         sent_save_error: result.sentSaveError,
+        original_marked_answered: originalMarkedAnswered,
+        mark_answered_error: markAnsweredError,
       },
     };
   },
@@ -133,15 +170,51 @@ function prefixSubject(subject: string, prefix: string): string {
     : `${prefix}${trimmed}`;
 }
 
-function buildReferences(env: ParsedEnvelope): string[] {
-  const refs: string[] = [];
-  // Preserve existing References chain by parsing from the envelope.
-  // (Our cache doesn't store the raw References header separately; this
-  // is a minimal implementation that keeps the thread alive via
-  // In-Reply-To alone. Full chain preservation lands when we cache the
-  // raw header set.)
-  if (env.messageId) refs.push(env.messageId);
-  return refs;
+/**
+ * The IMAP envelope carries In-Reply-To but not References, so the chain has
+ * to come from the header itself. A failure here costs correct threading in
+ * the recipient's client; failing the reply would cost the reply. Returns
+ * null and lets the caller fall back to the parent Message-ID alone.
+ */
+async function fetchReferencesHeader(
+  ctx: ToolContext,
+  folder: string,
+  uid: number,
+): Promise<string | null> {
+  try {
+    const imap = await ctx.imap.connection();
+    const lock = await imap.getMailboxLock(folder);
+    try {
+      const msg = await imap.fetchOne(String(uid), { headers: ['references'] }, { uid: true });
+      return msg && msg.headers ? msg.headers.toString('utf8') : null;
+    } finally {
+      lock.release();
+    }
+  } catch {
+    return null;
+  }
+}
+
+const REFERENCES_CAP = 20;
+
+/**
+ * Build the References chain for a reply: the parent's own chain plus the
+ * parent's Message-ID last, per RFC 5322 §3.6.4. Over the cap, the root is
+ * kept and the most recent entries trimmed to it - the root is what clients
+ * thread on, the middle is what they can afford to lose.
+ */
+export function mergeReferences(
+  headerValue: string | null,
+  parentMessageId: string | undefined,
+  cap: number = REFERENCES_CAP,
+): string[] {
+  const existing = headerValue?.match(/<[^<>]+>/g) ?? [];
+  const refs = [...existing];
+  if (parentMessageId !== undefined && !refs.includes(parentMessageId)) {
+    refs.push(parentMessageId);
+  }
+  if (refs.length <= cap) return refs;
+  return [refs[0]!, ...refs.slice(refs.length - (cap - 1))];
 }
 
 function dedupeAddrs(addrs: string[], exclude: Set<string>): string[] {

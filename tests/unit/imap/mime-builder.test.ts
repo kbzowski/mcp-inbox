@@ -93,6 +93,58 @@ describe('buildRawMessage', () => {
     expect(addrText(parsed.cc)).toContain('dave@example.com');
   });
 
+  it('attaches a message/rfc822 part as a downloadable .eml', async () => {
+    const inner = await buildRawMessage({
+      from: 'carol@example.com',
+      to: 'alice@example.com',
+      subject: 'Invoice',
+      text: 'see attached',
+    });
+
+    const raw = await buildRawMessage({
+      from: 'alice@example.com',
+      to: 'bob@example.com',
+      subject: 'Fwd: Invoice',
+      text: 'FYI',
+      attachments: [
+        {
+          filename: 'Invoice.eml',
+          content: inner,
+          contentType: 'message/rfc822',
+          contentDisposition: 'attachment',
+        },
+      ],
+    });
+
+    expect(raw.toString('utf8')).toContain('Content-Disposition: attachment');
+
+    const parsed = await simpleParser(raw);
+    const att = parsed.attachments.find((a) => a.contentType === 'message/rfc822');
+    expect(att?.filename).toBe('Invoice.eml');
+
+    const reparsed = await simpleParser(att!.content);
+    expect(reparsed.subject).toBe('Invoice');
+    expect(addrText(reparsed.from)).toContain('carol@example.com');
+  });
+
+  it('keeps text and html bodies alongside an attachment', async () => {
+    const raw = await buildRawMessage({
+      from: 'alice@example.com',
+      to: 'bob@example.com',
+      subject: 'Both plus file',
+      text: 'plain version',
+      html: '<p>html version</p>',
+      attachments: [{ filename: 'note.txt', content: Buffer.from('hello') }],
+    });
+
+    const parsed = await simpleParser(raw);
+    expect(parsed.text?.trim()).toBe('plain version');
+    expect(parsed.html).toContain('html version');
+    expect(parsed.attachments.find((a) => a.filename === 'note.txt')?.content.toString()).toBe(
+      'hello',
+    );
+  });
+
   it('auto-generates a Message-ID', async () => {
     const raw = await buildRawMessage({
       from: 'alice@example.com',

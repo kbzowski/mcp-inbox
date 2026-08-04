@@ -15,6 +15,8 @@ export async function seedEmail(options: {
   html?: string;
   cc?: string[];
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  inReplyTo?: string;
+  references?: string[];
 }): Promise<void> {
   const transporter = createTransport({
     host: options.host,
@@ -33,6 +35,8 @@ export async function seedEmail(options: {
       ...(options.text !== undefined && { text: options.text }),
       ...(options.html !== undefined && { html: options.html }),
       ...(options.attachments !== undefined && { attachments: options.attachments }),
+      ...(options.inReplyTo !== undefined && { inReplyTo: options.inReplyTo }),
+      ...(options.references !== undefined && { references: options.references }),
     });
   } finally {
     transporter.close();

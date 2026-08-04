@@ -159,7 +159,7 @@ All tools are prefixed `imap_` so they don't collide with other email MCPs. Ever
 
 - **`imap_list_folders`** - list every mailbox with its path, delimiter, and RFC 6154 special-use attribute (`\Drafts`, `\Sent`, `\Trash`, `\Junk`).
 - **`imap_list_emails`** `(folder?, limit?, offset?, unseen_only?, since_date?, before_date?)` - paginated envelope list, newest first. Defaults to `INBOX`, 20 per page.
-- **`imap_search_emails`** `(folder?, subject?, from?, to?, body?, unseen?, since_date?, before_date?)` - IMAP SEARCH on the server, returns matching envelopes from the cache. At least one criterion required.
+- **`imap_search_emails`** `(folder?, subject?, from?, to?, body?, unseen?, flagged?, answered?, since_date?, before_date?)` - IMAP SEARCH on the server, returns matching envelopes from the cache. At least one criterion required. `flagged` and `answered` are three-state: `true` matches, `false` matches the negation, omitting them does not filter.
 
 ### Reading
 
@@ -172,20 +172,23 @@ All tools are prefixed `imap_` so they don't collide with other email MCPs. Ever
 
 - **`imap_mark_read`** `(folder, uid)` - add `\Seen`. Idempotent.
 - **`imap_mark_unread`** `(folder, uid)` - remove `\Seen`. Idempotent.
+- **`imap_set_flags`** `(folder, uids, add?, remove?)` - set or clear `\Flagged` (the star / follow-up marker) and `\Answered` on up to 500 UIDs at once. Read/unread has its own tools; deleting does too, so neither `\Seen` nor `\Deleted` is accepted here.
 - **`imap_move_to_folder`** `(folder, uid, destination)` - IMAP MOVE with COPY+EXPUNGE fallback.
 - **`imap_delete_email`** `(folder, uid, hard_delete?)` - defaults to move-to-Trash. `hard_delete: true` permanently expunges.
 
 ### Composing
 
-- **`imap_create_draft`** `(to, subject, body?, html?, cc?, bcc?, from?)` - appends a new draft to the Drafts folder with the `\Draft` flag. nodemailer handles the RFC 2822 construction, so non-ASCII subjects, long bodies, and multipart text+HTML all just work.
-- **`imap_update_draft`** `(uid, to, subject, body?, html?, cc?, bcc?, from?)` - replaces an existing draft. Append-then-delete: the new draft is written first, only then is the old UID removed. A failure in the middle never loses the draft.
+Attachments on the composing and sending tools take `{ filename, content_base64, content_type? }`. The bytes pass through the model context, so a 2 MB PDF costs roughly 2.7M characters - to relay a file the model did not create, `imap_forward` is far cheaper.
+
+- **`imap_create_draft`** `(to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - appends a new draft to the Drafts folder with the `\Draft` flag. nodemailer handles the RFC 2822 construction, so non-ASCII subjects, long bodies, and multipart text+HTML all just work.
+- **`imap_update_draft`** `(uid, to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - replaces an existing draft. Append-then-delete: the new draft is written first, only then is the old UID removed. A failure in the middle never loses the draft.
 
 ### Sending
 
-- **`imap_send_email`** `(to, subject, body?, html?, cc?, bcc?, from?)` - SMTP send + best-effort append to the Sent folder so the message shows up in the user's mail client.
+- **`imap_send_email`** `(to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - SMTP send + best-effort append to the Sent folder so the message shows up in the user's mail client.
 - **`imap_send_draft`** `(uid, folder?)` - fetches raw source of the draft, sends it exactly as written (preserves attachments and formatting), then deletes the draft.
-- **`imap_reply`** `(folder, uid, body?, html?, reply_all?, cc?, bcc?, from?)` - preserves threading via `In-Reply-To` / `References`. Subject gets a `Re: ` prefix.
-- **`imap_forward`** `(folder, uid, to, body?, cc?, bcc?, from?)` - quotes the original inline, `Fwd: ` subject prefix.
+- **`imap_reply`** `(folder, uid, body?, html?, reply_all?, cc?, bcc?, from?, attachments?, mark_answered?)` - preserves threading via `In-Reply-To` / `References`. Subject gets a `Re: ` prefix. Sets `\Answered` on the original by default, so the thread reads as replied in the user's mail client.
+- **`imap_forward`** `(folder, uid, to, body?, cc?, bcc?, from?, attachments?)` - quotes the original inline, `Fwd: ` subject prefix, and attaches the untouched original as a `.eml` so its attachments, signatures and DKIM survive.
 
 ### Tool annotations
 
@@ -194,7 +197,7 @@ Every tool carries MCP annotations so clients can gate destructive actions:
 | Tool | readOnly | destructive | idempotent |
 |---|:-:|:-:|:-:|
 | list_folders / list_emails / get_email / search_emails / list_drafts / get_draft / get_attachment | ✓ | | ✓ |
-| mark_read / mark_unread | | | ✓ |
+| mark_read / mark_unread / set_flags | | | ✓ |
 | move_to_folder / delete_email | | ✓ | |
 | create_draft / update_draft | | | |
 | send_email / send_draft / reply / forward | | ✓ | |

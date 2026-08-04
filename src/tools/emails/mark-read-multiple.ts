@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { defineTool, type ToolContext } from '../define-tool';
-import { mapImapError } from '../../errors/mapper';
-import { mutateEmailFlagsForUids } from '../../cache/queries';
+import { applyFlags } from './flags';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the messages.'),
@@ -14,33 +13,17 @@ const Input = z.object({
     ),
 });
 
-async function updateSeenFlagBulk(
+function updateSeenFlagBulk(
   ctx: ToolContext,
   folder: string,
   uids: number[],
   want: 'add' | 'remove',
-): Promise<void> {
-  const imap = await ctx.imap.connection();
-  const lock = await imap.getMailboxLock(folder);
-  try {
-    if (want === 'add') {
-      await imap.messageFlagsAdd(uids, ['\\Seen'], { uid: true });
-    } else {
-      await imap.messageFlagsRemove(uids, ['\\Seen'], { uid: true });
-    }
-  } catch (err) {
-    throw mapImapError(err);
-  } finally {
-    lock.release();
-  }
-
-  // Write-through cache: mutate \Seen in-place on each cached row.
-  mutateEmailFlagsForUids(ctx.db, folder, uids, (flags) =>
-    want === 'add'
-      ? flags.includes('\\Seen')
-        ? flags
-        : [...flags, '\\Seen']
-      : flags.filter((f) => f !== '\\Seen'),
+): Promise<boolean> {
+  return applyFlags(
+    ctx,
+    folder,
+    uids,
+    want === 'add' ? { add: ['\\Seen'] } : { remove: ['\\Seen'] },
   );
 }
 
