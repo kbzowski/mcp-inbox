@@ -9,12 +9,26 @@ import {
   type VectorRow,
 } from './vectors';
 import { embedTexts, envelopeText } from '../embeddings/client';
+import { bodyChunks } from '../embeddings/chunk';
+import type { TextBodies } from '../imap/body-text';
 import type { EmbeddingsConfig } from '../config/env';
 import { EmbeddingError } from '../errors/types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('mcp-inbox:backfill');
+
+/**
+ * Supplies plain body text for a batch of UIDs. Injected rather than imported
+ * so this module never depends on ImapFlow, and so the caller owns the mailbox
+ * lock - which must never be held across an embeddings round-trip.
+ */
+export type BodyTextFetcher = (uids: readonly number[]) => Promise<TextBodies>;
 
 export interface BackfillResult {
   embedded: number;
   remaining: number;
+  /** Messages that contributed body chunks, not just an envelope. */
+  bodiesIndexed: number;
 }
 
 /**
@@ -37,6 +51,7 @@ export async function backfillFolder(
   budget: number,
   direction: 'newer' | 'both',
   now: () => number,
+  fetchBodies?: BodyTextFetcher,
 ): Promise<BackfillResult> {
   const state = getVecState(db, folder);
   if (state === undefined) {
@@ -48,9 +63,31 @@ export async function backfillFolder(
 
   let { fromUid, toUid } = state;
   let embedded = 0;
+  let bodiesIndexed = 0;
   let left = budget;
+  let bodiesAvailable = fetchBodies !== undefined;
 
   const startedEmpty = fromUid === 0 && toUid === 0;
+
+  /**
+   * Give up on bodies for the rest of the run once the server proves it will
+   * not serve parts. Retrying per batch would cost a failed round-trip for
+   * every batch; falling back to full RFC822 would restore the 80x transfer
+   * this whole path exists to avoid. Envelopes still index, so search
+   * degrades to its previous behaviour rather than failing.
+   */
+  const runBatch = async (rows: Email[]): Promise<void> => {
+    let bodies: TextBodies = { texts: new Map(), expected: 0 };
+    if (bodiesAvailable && fetchBodies) {
+      bodies = await fetchBodies(rows.map((r) => r.uid));
+      if (bodies.expected > 0 && bodies.texts.size === 0) {
+        bodiesAvailable = false;
+        log.warn('server returned no body parts - indexing envelopes only', { folder });
+      }
+    }
+    bodiesIndexed += bodies.texts.size;
+    await embedBatch(db, folder, rows, cfg, bodies.texts);
+  };
 
   const widenRange = (rows: Email[]) => {
     const uids = rows.map((r) => r.uid);
@@ -74,7 +111,7 @@ export async function backfillFolder(
         order: 'asc',
       });
       if (rows.length === 0) break;
-      await embedBatch(db, folder, rows, cfg);
+      await runBatch(rows);
       widenRange(rows);
       embedded += rows.length;
       left -= rows.length;
@@ -92,7 +129,7 @@ export async function backfillFolder(
         order: 'desc',
       });
       if (rows.length === 0) break;
-      await embedBatch(db, folder, rows, cfg);
+      await runBatch(rows);
       widenRange(rows);
       embedded += rows.length;
       left -= rows.length;
@@ -101,6 +138,7 @@ export async function backfillFolder(
 
   return {
     embedded,
+    bodiesIndexed,
     remaining: countEmailsOutsideUidRange(db, folder, fromUid, toUid),
   };
 }
@@ -115,19 +153,35 @@ async function embedBatch(
   folder: string,
   rows: Email[],
   cfg: EmbeddingsConfig,
+  bodies: Map<number, string>,
 ): Promise<void> {
-  const vectors = await embedTexts(rows.map(envelopeText), cfg);
+  const texts: string[] = [];
+  const owners: Omit<VectorRow, 'vector'>[] = [];
+
+  for (const row of rows) {
+    texts.push(envelopeText(row));
+    owners.push({ uid: row.uid, part: ENVELOPE_PART, date: row.date });
+
+    const body = bodies.get(row.uid);
+    if (body === undefined) continue;
+    for (const [i, chunk] of bodyChunks(body, row.subject).entries()) {
+      texts.push(chunk);
+      owners.push({ uid: row.uid, part: i + 1, date: row.date });
+    }
+  }
+
+  const vectors = await embedTexts(texts, cfg);
 
   const toInsert: VectorRow[] = [];
-  for (const [i, row] of rows.entries()) {
+  for (const [i, owner] of owners.entries()) {
     const vector = vectors[i];
     if (vector === undefined) {
       throw new EmbeddingError(
         'EMBEDDING_UNREACHABLE',
-        `The embeddings endpoint returned ${vectors.length} vectors for ${rows.length} messages.`,
+        `The embeddings endpoint returned ${vectors.length} vectors for ${owners.length} texts.`,
       );
     }
-    toInsert.push({ uid: row.uid, part: ENVELOPE_PART, date: row.date, vector });
+    toInsert.push({ ...owner, vector });
   }
 
   insertVectors(db, folder, toInsert);

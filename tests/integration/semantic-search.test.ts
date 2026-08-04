@@ -31,6 +31,17 @@ describeIfGreenmail('integration: semantic search over a real mailbox', () => {
     ] as const) {
       await seedEmail({ host, smtpPort, from, to: 'test@localhost', subject, text: subject });
     }
+
+    // Subject carries no signal at all; everything findable is in the body,
+    // and the body ends in a quoted tail that stripping must remove.
+    await seedEmail({
+      host,
+      smtpPort,
+      from: 'warehouse@logistics.example',
+      to: 'test@localhost',
+      subject: 'Re: 4417',
+      text: `${'Coroczna inwentaryzacja magazynu odbędzie się w październiku. '.repeat(8)}\n\nOn Mon, 3 Mar 2025 at 10:00, Bob wrote:\n> lecture schedule parcel courier receipt`,
+    });
   });
 
   afterEach(() => {
@@ -59,12 +70,52 @@ describeIfGreenmail('integration: semantic search over a real mailbox', () => {
 
     const body = res.structuredContent as {
       embedded: number;
+      bodies_indexed: number;
       remaining: number;
       complete: boolean;
     };
     expect(res.isError).not.toBe(true);
-    expect(body.embedded).toBeGreaterThanOrEqual(3);
+    expect(body.embedded).toBeGreaterThanOrEqual(4);
+    expect(body.bodies_indexed).toBeGreaterThanOrEqual(4);
     expect(body.complete).toBe(true);
+  });
+
+  it('finds a message by its body when the subject says nothing', async () => {
+    if (skipWithoutVectors()) return;
+    installFakeEmbeddings(FAKE_DIMS);
+
+    const res = await semanticSearchTool.handler(
+      {
+        query: 'coroczna inwentaryzacja magazynu',
+        folder: 'INBOX',
+        limit: 3,
+        max_staleness_seconds: 60,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+
+    const body = res.structuredContent as { emails: { subject: string | null }[] };
+    expect(body.emails[0]?.subject).toBe('Re: 4417');
+  });
+
+  it('does not match on the quoted tail that stripping removed', async () => {
+    if (skipWithoutVectors()) return;
+    installFakeEmbeddings(FAKE_DIMS);
+
+    const res = await semanticSearchTool.handler(
+      {
+        query: 'lecture schedule',
+        folder: 'INBOX',
+        limit: 2,
+        max_staleness_seconds: 60,
+        response_format: 'json',
+      },
+      harness.ctx,
+    );
+
+    const body = res.structuredContent as { emails: { subject: string | null }[] };
+    expect(body.emails[0]?.subject).toBe('Lecture schedule for spring semester');
   });
 
   it('re-running embeds nothing new', async () => {

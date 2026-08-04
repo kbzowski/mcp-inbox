@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { resolve } from 'node:path';
+import { sql } from 'drizzle-orm';
 import { openCache, type CacheHandle } from '@/cache/db';
 import { deleteEmail, deleteEmailsByFolder, upsertEmails } from '@/cache/queries';
 import {
@@ -48,6 +49,10 @@ function buildEmail(uid: number, folder: string, date: number): EmailInsert {
 
 describeIfVec('vec0 vector index', () => {
   let cache: CacheHandle;
+
+  const rawRowCount = (folder: string) =>
+    cache.db.get<{ c: number }>(sql`SELECT count(*) AS c FROM vec_emails WHERE folder = ${folder}`)
+      ?.c ?? 0;
 
   const seedState = (folder: string) => {
     upsertVecState(cache.db, {
@@ -100,14 +105,40 @@ describeIfVec('vec0 vector index', () => {
     expect(hits[0]?.distance).toBeCloseTo(0);
   });
 
-  it('keeps parts of the same message side by side', () => {
+  it('keeps parts of the same message side by side but counts it once', () => {
     insertVectors(cache.db, 'INBOX', [
       { uid: 1, part: 0, date: 1000, vector: vec([1, 0, 0, 0]) },
       { uid: 1, part: 1, date: 1000, vector: vec([0, 1, 0, 0]) },
     ]);
 
-    expect(countVectors(cache.db, 'INBOX')).toBe(2);
+    expect(countVectors(cache.db, 'INBOX')).toBe(1);
+    expect(rawRowCount('INBOX')).toBe(2);
     expect(knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10)).toHaveLength(1);
+  });
+
+  it('ranks a message by its best chunk, not its average', () => {
+    insertVectors(cache.db, 'INBOX', [
+      { uid: 1, part: 0, date: 1000, vector: vec([0, 0, 1, 0]) },
+      { uid: 1, part: 1, date: 1000, vector: vec([0, 0, 0, 1]) },
+      { uid: 1, part: 2, date: 1000, vector: vec([1, 0, 0, 0]) },
+      { uid: 2, part: 0, date: 2000, vector: vec([0.7, 0.7, 0, 0]) },
+    ]);
+
+    const hits = knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 20);
+
+    expect(hits.map((h) => h.uid)).toEqual([1, 2]);
+    expect(hits[0]?.distance).toBeCloseTo(0);
+  });
+
+  it('replaces every part of a message when it is re-indexed into fewer chunks', () => {
+    insertVectors(cache.db, 'INBOX', [
+      { uid: 1, part: 0, date: 1000, vector: vec([1, 0, 0, 0]) },
+      { uid: 1, part: 1, date: 1000, vector: vec([0, 1, 0, 0]) },
+      { uid: 1, part: 2, date: 1000, vector: vec([0, 0, 1, 0]) },
+    ]);
+    insertVectors(cache.db, 'INBOX', [{ uid: 1, part: 0, date: 1000, vector: vec([1, 0, 0, 0]) }]);
+
+    expect(rawRowCount('INBOX')).toBe(1);
   });
 
   it('never returns a vector from another folder', () => {

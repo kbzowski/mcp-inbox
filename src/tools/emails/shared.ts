@@ -2,6 +2,11 @@ import { simpleParser } from 'mailparser';
 import type { ToolContext } from '../define-tool';
 import { EmbeddingError, ImapError } from '../../errors/types';
 import type { EmbeddingsConfig } from '../../config/env';
+import type { BodyTextFetcher } from '../../cache/backfill';
+import { fetchTextBodies } from '../../imap/body-text';
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('mcp-inbox:tools');
 import { mapImapError } from '../../errors/mapper';
 import { syncFolder } from '../../cache/sync';
 import {
@@ -56,6 +61,37 @@ export function requireEmbeddings(ctx: ToolContext): EmbeddingsConfig {
     );
   }
   return ctx.embeddings;
+}
+
+/**
+ * Body-text source for the semantic indexer.
+ *
+ * The mailbox lock is taken and released around the fetch alone, never across
+ * the embedding round-trips that follow: one IMAP connection serves the whole
+ * server, so holding it for a full indexing run would stall every other tool.
+ *
+ * A failure here yields an empty result with `expected: 0`, which reads as
+ * "nothing to say about bodies" rather than "this server has no bodies", so a
+ * transient connection error does not switch body indexing off for the run.
+ */
+export function bodyFetcherFor(ctx: ToolContext, folder: string): BodyTextFetcher {
+  return async (uids) => {
+    try {
+      const imap = await ctx.imap.connection();
+      const lock = await imap.getMailboxLock(folder);
+      try {
+        return await fetchTextBodies(imap, uids);
+      } finally {
+        lock.release();
+      }
+    } catch (err) {
+      log.warn('could not fetch body text', {
+        folder,
+        msg: err instanceof Error ? err.message : String(err),
+      });
+      return { texts: new Map(), expected: 0 };
+    }
+  };
 }
 
 /**

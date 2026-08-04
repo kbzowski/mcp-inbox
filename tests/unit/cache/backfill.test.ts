@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resolve } from 'node:path';
+import { sql } from 'drizzle-orm';
 import { openCache, type CacheHandle } from '@/cache/db';
 import { upsertEmails } from '@/cache/queries';
 import { backfillFolder } from '@/cache/backfill';
@@ -50,6 +51,15 @@ describeIfVec('backfillFolder', () => {
     cache.close();
   });
 
+  const rawRowCount = () =>
+    cache.db.get<{ c: number }>(sql`SELECT count(*) AS c FROM vec_emails`)?.c ?? 0;
+
+  const partsFor = (uid: number) =>
+    cache.db
+      .all<{ part: number }>(sql`SELECT part FROM vec_emails WHERE uid = ${BigInt(uid)}`)
+      .map((r) => r.part)
+      .toSorted((a, b) => a - b);
+
   const seedEmptyState = () => {
     upsertVecState(cache.db, {
       folder: 'INBOX',
@@ -72,7 +82,7 @@ describeIfVec('backfillFolder', () => {
 
     const result = await backfillFolder(cache.db, 'INBOX', cfg, 2, 'both', now);
 
-    expect(result).toEqual({ embedded: 2, remaining: 3 });
+    expect(result).toEqual({ embedded: 2, bodiesIndexed: 0, remaining: 3 });
     expect(countVectors(cache.db, 'INBOX')).toBe(2);
     expect(getVecState(cache.db, 'INBOX')).toMatchObject({ fromUid: 4, toUid: 5 });
   });
@@ -83,7 +93,7 @@ describeIfVec('backfillFolder', () => {
 
     const result = await backfillFolder(cache.db, 'INBOX', cfg, 10, 'both', now);
 
-    expect(result).toEqual({ embedded: 3, remaining: 0 });
+    expect(result).toEqual({ embedded: 3, bodiesIndexed: 0, remaining: 0 });
     expect(countVectors(cache.db, 'INBOX')).toBe(5);
     expect(getVecState(cache.db, 'INBOX')).toMatchObject({ fromUid: 1, toUid: 5 });
   });
@@ -94,7 +104,7 @@ describeIfVec('backfillFolder', () => {
 
     const result = await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now);
 
-    expect(result).toEqual({ embedded: 0, remaining: 0 });
+    expect(result).toEqual({ embedded: 0, bodiesIndexed: 0, remaining: 0 });
   });
 
   it("spends the whole budget on an empty range even in 'newer' mode", async () => {
@@ -102,7 +112,7 @@ describeIfVec('backfillFolder', () => {
 
     const result = await backfillFolder(cache.db, 'INBOX', cfg, 100, 'newer', now);
 
-    expect(result).toEqual({ embedded: 5, remaining: 0 });
+    expect(result).toEqual({ embedded: 5, bodiesIndexed: 0, remaining: 0 });
     expect(getVecState(cache.db, 'INBOX')).toMatchObject({ fromUid: 1, toUid: 5 });
   });
 
@@ -122,6 +132,82 @@ describeIfVec('backfillFolder', () => {
     expect(result.embedded).toBe(1);
     expect(getVecState(cache.db, 'INBOX')).toMatchObject({ fromUid: 3, toUid: 6 });
     expect(result.remaining).toBe(2);
+  });
+
+  it('embeds body chunks alongside the envelope', async () => {
+    seedEmptyState();
+    const body = 'Treść wiadomości o umowie i terminie płatności. '.repeat(40);
+    const fetchBodies = vi.fn(async (uids: readonly number[]) => {
+      await Promise.resolve();
+      return { texts: new Map(uids.map((uid) => [uid, body])), expected: uids.length };
+    });
+
+    const result = await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now, fetchBodies);
+
+    expect(result.embedded).toBe(5);
+    expect(result.bodiesIndexed).toBe(5);
+    expect(countVectors(cache.db, 'INBOX')).toBe(5);
+    expect(rawRowCount()).toBeGreaterThan(5);
+    const parts = partsFor(1);
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts).toEqual(parts.map((_p, i) => i));
+  });
+
+  it('stops asking for bodies once the server proves it will not serve them', async () => {
+    seedEmptyState();
+    const fetchBodies = vi.fn(async (uids: readonly number[]) => {
+      await Promise.resolve();
+      return { texts: new Map<number, string>(), expected: uids.length };
+    });
+
+    const result = await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now, fetchBodies);
+
+    expect(result.embedded).toBe(5);
+    expect(result.bodiesIndexed).toBe(0);
+    expect(fetchBodies).toHaveBeenCalledTimes(1);
+    expect(rawRowCount()).toBe(5);
+  });
+
+  it('keeps asking when a folder simply has no text parts', async () => {
+    seedEmptyState();
+    const fetchBodies = vi.fn(async () => {
+      await Promise.resolve();
+      return { texts: new Map<number, string>(), expected: 0 };
+    });
+
+    await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now, fetchBodies);
+
+    expect(fetchBodies.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it('drops surplus chunks when a message re-indexes to fewer of them', async () => {
+    seedEmptyState();
+    const longBody = 'Bardzo długi akapit o wielu sprawach naraz. '.repeat(60);
+    await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now, async (uids) => {
+      await Promise.resolve();
+      return { texts: new Map(uids.map((uid) => [uid, longBody])), expected: uids.length };
+    });
+    const before = partsFor(1).length;
+    expect(before).toBeGreaterThan(2);
+
+    upsertVecState(cache.db, {
+      folder: 'INBOX',
+      model: cfg.model,
+      dims: FAKE_DIMS,
+      fromUid: 0,
+      toUid: 0,
+      indexedAt: 0,
+    });
+    await backfillFolder(cache.db, 'INBOX', cfg, 100, 'both', now, async (uids) => {
+      await Promise.resolve();
+      return {
+        texts: new Map(uids.map((uid) => [uid, 'Krótka treść zastępcza dla tego maila.'])),
+        expected: uids.length,
+      };
+    });
+
+    expect(partsFor(1).length).toBeLessThan(before);
+    expect(Math.max(...partsFor(1))).toBeLessThan(before);
   });
 
   it('leaves the watermark untouched when a batch fails', async () => {

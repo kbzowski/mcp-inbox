@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool } from '../define-tool';
-import { projectEmailSummary, requireEmbeddings, syncIfStale } from './shared';
+import { bodyFetcherFor, projectEmailSummary, requireEmbeddings, syncIfStale } from './shared';
 import { backfillFolder } from '../../cache/backfill';
 import { ensureVecTable, knnSearch } from '../../cache/vectors';
 import { embedTexts } from '../../embeddings/client';
@@ -17,12 +17,12 @@ import type { Email } from '../../cache/schema';
 const SEARCH_BACKFILL_BUDGET = 500;
 
 /**
- * A vector can outlive its cached envelope - the message is expunged while
- * another client holds the cache, or it was indexed by a build predating the
- * cleanup hooks. Those hits have no row to return and get dropped after the
- * join, so asking vec0 for exactly `limit` would silently return short.
+ * A message occupies several rows in the index - one per body chunk plus its
+ * envelope - and those collapse to a single result, so asking vec0 for exactly
+ * `limit` rows would return far fewer messages than requested. Vectors that
+ * outlived their cached envelope shrink the set further.
  */
-const OVERFETCH_FACTOR = 2;
+const OVERFETCH_FACTOR = 5;
 
 const Input = z.object({
   query: z
@@ -47,7 +47,7 @@ const Input = z.object({
 export const semanticSearchTool = defineTool({
   name: 'imap_semantic_search',
   description:
-    'Find messages by meaning rather than by keyword - "the invoice from the hosting provider" can match a message titled "Payment receipt #4417". Ranks cached messages by embedding similarity over subject and sender, so it works across languages and paraphrases. Always returns the top `limit` matches, however weak: it never filters, so decide for yourself which of the returned messages actually answer the question and ignore the rest. Requires imap_index_folder to have been run on the folder first. For exact words, sender addresses, flags, or text inside message bodies, use imap_search_emails instead: it is faster and searches full bodies server-side.',
+    'Find messages by meaning rather than by keyword - "the invoice from the hosting provider" can match a message titled "Payment receipt #4417". Ranks cached messages by embedding similarity over their subject, sender, and message text, so it finds a message by what it says even when the subject is useless ("Re: 4417"), and works across languages and paraphrases. Always returns the top `limit` matches, however weak: it never filters, so decide for yourself which of the returned messages actually answer the question and ignore the rest. Requires imap_index_folder to have been run on the folder first. For exact words, sender addresses, flags, or text inside message bodies, use imap_search_emails instead: it is faster and searches full bodies server-side.',
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
@@ -69,6 +69,7 @@ export const semanticSearchTool = defineTool({
       SEARCH_BACKFILL_BUDGET,
       'newer',
       ctx.now,
+      bodyFetcherFor(ctx, args.folder),
     );
 
     const [queryVector] = await embedTexts([args.query], cfg);

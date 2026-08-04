@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool } from '../define-tool';
-import { requireEmbeddings, syncIfStale } from './shared';
+import { bodyFetcherFor, requireEmbeddings, syncIfStale } from './shared';
 import { backfillFolder } from '../../cache/backfill';
 import {
   countVectors,
@@ -17,9 +17,9 @@ const Input = z.object({
     .int()
     .min(1)
     .max(50_000)
-    .default(1_500)
+    .default(500)
     .describe(
-      'Cap on how many messages are embedded in this call, newest-first. Roughly 1500 messages take two minutes, so raise this only if your client tolerates a long-running tool call. Re-run the tool to continue where it left off.',
+      'Cap on how many messages are embedded in this call, newest-first. Measured at roughly four messages per second, so 500 takes about two minutes; raise it only if your client tolerates a longer tool call. Re-run the tool to continue where it left off.',
     ),
   max_staleness_seconds: z
     .number()
@@ -35,7 +35,7 @@ const Input = z.object({
 export const indexFolderTool = defineTool({
   name: 'imap_index_folder',
   description:
-    "Build the local semantic-search index for a folder by embedding each message's subject and sender through the configured embeddings API. Opt-in per folder and safe to re-run: already-indexed messages are skipped, so a large folder can be indexed across several calls. Required before imap_semantic_search can be used on that folder.",
+    "Build the local semantic-search index for a folder by embedding each message's subject, sender, and body text through the configured embeddings API. Attachments are never downloaded. Opt-in per folder and safe to re-run: already-indexed messages are skipped, so a large folder can be indexed across several calls. Required before imap_semantic_search can be used on that folder.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
@@ -72,6 +72,7 @@ export const indexFolderTool = defineTool({
       args.max_messages,
       'both',
       ctx.now,
+      bodyFetcherFor(ctx, args.folder),
     );
 
     const structured = {
@@ -79,6 +80,7 @@ export const indexFolderTool = defineTool({
       model: cfg.model,
       dims: cfg.dims,
       embedded: result.embedded,
+      bodies_indexed: result.bodiesIndexed,
       pruned,
       indexed_total: countVectors(ctx.db, args.folder),
       remaining: result.remaining,
@@ -101,6 +103,7 @@ function formatIndexMarkdown(s: {
   folder: string;
   model: string;
   embedded: number;
+  bodies_indexed: number;
   pruned: number;
   indexed_total: number;
   remaining: number;
@@ -109,10 +112,15 @@ function formatIndexMarkdown(s: {
   const lines = [
     `Indexed **${s.folder}** for semantic search using \`${s.model}\`.`,
     '',
-    `- Embedded this run: ${s.embedded}`,
+    `- Embedded this run: ${s.embedded} (${s.bodies_indexed} with message text)`,
     `- Indexed in total: ${s.indexed_total}`,
     `- Still unindexed: ${s.remaining}`,
   ];
+  if (s.embedded > 0 && s.bodies_indexed === 0) {
+    lines.push(
+      '- This server did not return message text, so only subjects and senders were indexed.',
+    );
+  }
   if (s.pruned > 0) {
     lines.push(`- Dropped for deleted messages: ${s.pruned}`);
   }

@@ -104,6 +104,8 @@ Worth knowing:
 
 `imap_search_emails` matches literal text on the server. `imap_semantic_search` matches meaning: "the invoice from the hosting provider" finds a message titled "Payment receipt #4417". It works across languages and paraphrases, and it only ranks what has been indexed.
 
+Indexing covers the subject, the sender, and the message text, so a message is findable by what it says even when its subject is useless ("Re: 4417"). Quoted reply history is stripped before embedding, and a message is ranked by its single most relevant passage.
+
 Off unless you set `IMAP_EMBEDDINGS_BASE_URL`. Any OpenAI-compatible `/v1/embeddings` endpoint works, including a local one:
 
 ```bash
@@ -111,11 +113,13 @@ IMAP_EMBEDDINGS_BASE_URL=https://your-endpoint/v1
 IMAP_EMBEDDINGS_API_KEY=sk-...
 ```
 
-**Indexing is opt-in per folder.** Run `imap_index_folder` on a folder before searching it. That call sends each message's subject and sender to the configured endpoint - nothing else, and no message bodies. It is safe to re-run: already-indexed messages are skipped, so a large folder can be indexed over several calls. Mail that arrives afterwards is indexed by the next `imap_semantic_search` (up to 500 per call; the rest is reported as `pending_index`).
+**Indexing is opt-in per folder.** Run `imap_index_folder` on a folder before searching it. That call sends each message's subject, sender, and body text to the configured endpoint. **Attachments are never downloaded or sent** - only the message's text part is fetched, which on a real mailbox is roughly 80x less data than the full messages. It is safe to re-run: already-indexed messages are skipped, so a large folder can be indexed over several calls. Mail that arrives afterwards is indexed by the next `imap_semantic_search` (up to 500 per call; the rest is reported as `pending_index`).
+
+If your IMAP server refuses to serve individual body parts, indexing falls back to subjects and senders alone and says so: `bodies_indexed` comes back as zero.
 
 Vectors live in the same SQLite cache as everything else and survive restarts. They also outlive the message bodies that `IMAP_CACHE_BODY_RETAIN_DAYS` prunes, so old mail stays findable.
 
-Changing `IMAP_EMBEDDINGS_MODEL` or `IMAP_EMBEDDINGS_DIMS` drops the index - the vector table's dimensionality is fixed when it is created. Re-run `imap_index_folder` afterwards.
+Changing `IMAP_EMBEDDINGS_MODEL` or `IMAP_EMBEDDINGS_DIMS` drops the index - the vector table's dimensionality is fixed when it is created. Upgrading mcp-inbox can do the same when the index format changes. Either way the fix is the same: re-run `imap_index_folder`.
 
 **Platform support.** Vector search needs the `sqlite-vec` extension, which ships prebuilt binaries for linux-x64/arm64, macOS x64/arm64, and windows-x64. On **windows-arm64 and Alpine/musl** there is no binary: the two semantic tools return a clear error pointing at `imap_search_emails`, and every other tool works normally.
 

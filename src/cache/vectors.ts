@@ -5,8 +5,20 @@ import { createLogger } from '../utils/logger';
 
 const log = createLogger('mcp-inbox:vectors');
 
-/** Envelope vectors. Body chunks will take part 1..n without a schema change. */
+/** Envelope vectors. Body chunks take part 1..n. */
 const ENVELOPE_PART = 0;
+
+/**
+ * Bumped when the meaning of an indexed row changes without the model
+ * changing, so the existing rebuild path re-embeds everything. `b1` added
+ * body chunks alongside the envelope.
+ */
+const INDEX_VERSION = 'b1';
+
+/** What gets stored in `vec_index_state.model`; tool output shows plain `cfg.model`. */
+export function indexModelId(model: string): string {
+  return model.includes('#') ? model : `${model}#${INDEX_VERSION}`;
+}
 
 export interface VectorRow {
   uid: number;
@@ -39,18 +51,22 @@ const toBlob = (vector: Float32Array): Uint8Array =>
  * fatal startup error. Creating it lazily keeps those platforms bootable.
  */
 export function ensureVecTable(db: CacheDb, model: string, dims: number): void {
+  const wanted = indexModelId(model);
   const stale = db
     .select()
     .from(vecIndexState)
-    .where(or(ne(vecIndexState.model, model), ne(vecIndexState.dims, dims)))
+    .where(or(ne(vecIndexState.model, wanted), ne(vecIndexState.dims, dims)))
     .all();
 
   if (stale.length > 0) {
-    log.warn('embedding model changed - dropping vector index, re-run imap_index_folder', {
-      folders: stale.map((s) => s.folder),
-      model,
-      dims,
-    });
+    log.warn(
+      'embedding model or index format changed - dropping vector index, re-run imap_index_folder',
+      {
+        folders: stale.map((s) => s.folder),
+        was: stale.map((s) => `${s.model}/${String(s.dims)}`),
+        now: `${wanted}/${String(dims)}`,
+      },
+    );
     db.run(sql.raw('DROP TABLE IF EXISTS vec_emails'));
     db.delete(vecIndexState).run();
   }
@@ -73,12 +89,13 @@ export function getVecState(db: CacheDb, folder: string): VecIndexState | undefi
 }
 
 export function upsertVecState(db: CacheDb, row: VecIndexState): void {
+  const normalized = { ...row, model: indexModelId(row.model) };
   db.insert(vecIndexState)
-    .values(row)
+    .values(normalized)
     .onConflictDoUpdate({
       target: vecIndexState.folder,
       set: {
-        model: row.model,
+        model: normalized.model,
         dims: row.dims,
         fromUid: row.fromUid,
         toUid: row.toUid,
@@ -92,16 +109,20 @@ export function upsertVecState(db: CacheDb, row: VecIndexState): void {
  * vec0 has no unique constraint, so a plain INSERT would duplicate a message
  * whenever the same range is embedded twice - after a crash between writing
  * vectors and advancing the watermark, or when two clients index the same
- * cache concurrently. Deleting first makes the write idempotent.
+ * cache concurrently.
+ *
+ * The delete is per uid rather than per (uid, part): re-indexing a message
+ * into fewer chunks than last time must not leave the surplus parts behind,
+ * pointing at text the message no longer contains.
  */
 export function insertVectors(db: CacheDb, folder: string, rows: readonly VectorRow[]): void {
   if (rows.length === 0) return;
+  const uids = [...new Set(rows.map((r) => r.uid))];
   db.transaction((tx) => {
+    for (const uid of uids) {
+      tx.run(sql`DELETE FROM vec_emails WHERE folder = ${folder} AND uid = ${int(uid)}`);
+    }
     for (const row of rows) {
-      tx.run(
-        sql`DELETE FROM vec_emails
-            WHERE folder = ${folder} AND uid = ${int(row.uid)} AND part = ${int(row.part)}`,
-      );
       tx.run(
         sql`INSERT INTO vec_emails(folder, uid, part, date, embedding)
             VALUES (${folder}, ${int(row.uid)}, ${int(row.part)}, ${int(row.date ?? 0)}, ${toBlob(row.vector)})`,
@@ -151,6 +172,10 @@ export function deleteVectorsByUids(db: CacheDb, folder: string, uids: readonly 
  * The CTE is MATERIALIZED so the planner cannot inline the scan into an outer
  * query and lose that constraint. Folder and date are applied inside the scan,
  * so the k results come back already filtered rather than filtered afterwards.
+ *
+ * Grouping happens outside the CTE, leaving `k` untouched. A message is ranked
+ * by its single best chunk, not by an average: one sharply relevant paragraph
+ * in a long mail should beat a uniformly vague short one.
  */
 export function knnSearch(
   db: CacheDb,
@@ -169,10 +194,9 @@ export function knnSearch(
       WHERE embedding MATCH ${toBlob(query)}
         AND k = ${int(k)}
         AND folder = ${folder}
-        AND part = ${int(ENVELOPE_PART)}
         ${sql.join(filters, sql``)}
     )
-    SELECT uid, distance FROM knn ORDER BY distance
+    SELECT uid, min(distance) AS distance FROM knn GROUP BY uid ORDER BY distance
   `);
 }
 
@@ -212,9 +236,10 @@ export function pruneOrphanedVectors(db: CacheDb, folder: string): number {
   }
 }
 
+/** Messages, not rows - a message contributes an envelope plus its body chunks. */
 export function countVectors(db: CacheDb, folder: string): number {
   const row = db.get<{ c: number }>(
-    sql`SELECT count(*) AS c FROM vec_emails WHERE folder = ${folder}`,
+    sql`SELECT count(DISTINCT uid) AS c FROM vec_emails WHERE folder = ${folder}`,
   );
   return row?.c ?? 0;
 }
