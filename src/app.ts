@@ -25,8 +25,8 @@ try {
   configureLogger({ debug: config.debug, level: 'info' });
   rootLogger.info('booting mcp-inbox', {
     imapHost: config.imap.host,
-    cacheEnabled: config.cache.enabled,
     cacheDir: config.cache.dir,
+    cacheStalenessSec: config.cache.defaultStalenessSec,
     idleEnabled: config.idle.enabled,
     idleFolders: config.idle.folders,
   });

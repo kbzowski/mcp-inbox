@@ -18,7 +18,14 @@ const Input = z.object({
     ),
   limit: z.number().int().min(1).max(100).default(20),
   offset: z.number().int().min(0).default(0),
-  max_staleness_seconds: z.number().int().min(0).default(60),
+  max_staleness_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+    ),
   response_format: z.enum(['markdown', 'json']).default('markdown'),
 });
 

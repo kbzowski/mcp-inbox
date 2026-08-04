@@ -346,3 +346,26 @@ describe('imap_search_emails - combinator fields', () => {
     ).toBe(true);
   });
 });
+
+describe('max_staleness_seconds is env-defaulted, not schema-defaulted', () => {
+  const staleAware = [
+    ['imap_get_email', getEmailTool, { folder: 'INBOX', uid: 1 }],
+    ['imap_search_emails', searchEmailsTool, { folder: 'INBOX', subject: 'x' }],
+    ['imap_get_draft', getDraftTool, { uid: 1 }],
+    ['imap_list_emails', listEmailsTool, { folder: 'INBOX' }],
+    ['imap_reply', replyTool, { folder: 'INBOX', uid: 1, body: 'x' }],
+    ['imap_forward', forwardTool, { folder: 'INBOX', uid: 1, to: ['a@example.com'] }],
+  ] as const;
+
+  it.each(staleAware)('%s leaves the field undefined when omitted', (_name, tool, args) => {
+    const parsed = tool.inputSchema.safeParse(args);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.max_staleness_seconds).toBeUndefined();
+  });
+
+  it.each(staleAware)('%s still accepts an explicit 0', (_name, tool, args) => {
+    const parsed = tool.inputSchema.safeParse({ ...args, max_staleness_seconds: 0 });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.max_staleness_seconds).toBe(0);
+  });
+});

@@ -16,14 +16,15 @@ import type { AttachmentInfo, Email } from '../../cache/schema';
 import { findSpecialFolder, type SpecialUseAttr } from '../../imap/folders';
 
 /**
- * Sync a folder if its cache is older than `maxStalenessSec`. Returns
- * true iff a sync actually ran, so callers can decorate their response
- * with `served_from: "cache" | "sync"`.
+ * Sync a folder if its cache is older than `maxStalenessSec`, which falls
+ * back to IMAP_CACHE_DEFAULT_STALENESS_SEC when the caller omits it.
+ * Returns true iff a sync actually ran, so callers can decorate their
+ * response with `served_from: "cache" | "sync"`.
  */
 export async function syncIfStale(
   ctx: ToolContext,
   folder: string,
-  maxStalenessSec: number,
+  maxStalenessSec: number = ctx.cacheConfig.defaultStalenessSec,
 ): Promise<boolean> {
   const cached = getFolder(ctx.db, folder);
   const ageMs = cached ? ctx.now() - cached.lastSyncedAt : Infinity;
@@ -147,7 +148,7 @@ export async function ensureEnvelopeCached(
   ctx: ToolContext,
   folder: string,
   uid: number,
-  maxStalenessSec: number,
+  maxStalenessSec?: number,
 ): Promise<Email> {
   const existing = getEmail(ctx.db, folder, uid);
   if (existing !== undefined) {

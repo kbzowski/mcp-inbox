@@ -26,9 +26,9 @@ const Input = z.object({
     .number()
     .int()
     .min(0)
-    .default(60)
+    .optional()
     .describe(
-      'Serve from cache if the folder was synced within this many seconds. Pass 0 to force a fresh sync.',
+      'Serve from cache if the folder was synced within this many seconds. Pass 0 to force a fresh sync. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
     ),
   response_format: z.enum(['markdown', 'json']).default('markdown'),
 });

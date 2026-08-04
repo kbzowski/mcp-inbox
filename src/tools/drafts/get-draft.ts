@@ -18,7 +18,14 @@ const Input = z.object({
     .min(1)
     .optional()
     .describe('Optional explicit Drafts folder path. Auto-detected from SPECIAL-USE when omitted.'),
-  max_staleness_seconds: z.number().int().min(0).default(60),
+  max_staleness_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+    ),
   response_format: z.enum(['markdown', 'json']).default('markdown'),
 });
 

@@ -34,11 +34,8 @@ const EnvSchema = z
     SMTP_PASSWORD: z.string().min(1).optional(),
 
     // Cache
-    IMAP_CACHE_ENABLED: BooleanString.default(true),
     IMAP_CACHE_DIR: z.string().min(1).optional(),
-    IMAP_CACHE_BODY_INLINE: BooleanString.default(false),
     IMAP_CACHE_DEFAULT_STALENESS_SEC: z.coerce.number().int().min(0).default(60),
-    IMAP_CACHE_RETAIN_DAYS: z.coerce.number().int().min(0).default(365),
 
     // IDLE
     IMAP_IDLE_ENABLED: BooleanString.default(true),
@@ -65,11 +62,8 @@ const EnvSchema = z
       password: raw.SMTP_PASSWORD ?? raw.IMAP_PASSWORD,
     },
     cache: {
-      enabled: raw.IMAP_CACHE_ENABLED,
       dir: raw.IMAP_CACHE_DIR ?? defaultCacheDir(),
-      eagerBodyCache: raw.IMAP_CACHE_BODY_INLINE,
       defaultStalenessSec: raw.IMAP_CACHE_DEFAULT_STALENESS_SEC,
-      retainDays: raw.IMAP_CACHE_RETAIN_DAYS,
     },
     idle: {
       enabled: raw.IMAP_IDLE_ENABLED,

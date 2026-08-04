@@ -11,7 +11,14 @@ const Input = z.object({
     .describe(
       'IMAP UID of the message. UIDs are folder-scoped - a UID from INBOX cannot be reused with the Sent folder.',
     ),
-  max_staleness_seconds: z.number().int().min(0).default(60),
+  max_staleness_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+    ),
   response_format: z.enum(['markdown', 'json']).default('markdown'),
 });
 

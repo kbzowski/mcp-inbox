@@ -56,11 +56,8 @@ export function buildHarness(): IntegrationHarness {
     imap,
     smtp,
     cacheConfig: {
-      enabled: true,
       dir: '/tmp/mcp-inbox-test',
-      eagerBodyCache: false,
       defaultStalenessSec: 60,
-      retainDays: 365,
     },
     defaults: {
       fromAddress: 'test@localhost',

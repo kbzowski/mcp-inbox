@@ -20,7 +20,14 @@ const Input = z.object({
       'When true, CC the original To + Cc recipients (minus the sender). When false, reply only to the original From.',
     ),
   from: z.string().min(1).optional(),
-  max_staleness_seconds: z.number().int().min(0).default(60),
+  max_staleness_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe(
+      'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+    ),
 });
 
 export const replyTool = defineTool({

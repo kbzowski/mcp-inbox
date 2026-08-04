@@ -64,7 +64,14 @@ const Input = z
       'Sub-criteria that must NOT match. Useful for excluding auto-generated mail, e.g. `{not: {from: "noreply"}}`.',
     ),
     limit: z.number().int().min(1).max(100).default(20),
-    max_staleness_seconds: z.number().int().min(0).default(60),
+    max_staleness_seconds: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        'Serve from cache if the folder was synced within this many seconds. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+      ),
     response_format: z.enum(['markdown', 'json']).default('markdown'),
   })
   .refine(
