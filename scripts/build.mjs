@@ -26,7 +26,7 @@ await build({
   target: 'node24',
   format: 'esm',
   minify: false,
-  sourcemap: true,
+  sourcemap: false,
   banner: {
     js: `import { createRequire as __mcpCreateRequire } from 'node:module';
 globalThis.require = globalThis.require ?? __mcpCreateRequire(import.meta.url);`,
@@ -44,7 +44,7 @@ await build({
   target: 'node24',
   format: 'esm',
   minify: false,
-  sourcemap: true,
+  sourcemap: false,
   banner: {
     // Shebang at the top of each bundle. Paired with a createRequire shim
     // so the ESM output can require() CommonJS deps (nodemailer, imapflow,
