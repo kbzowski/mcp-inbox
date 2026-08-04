@@ -180,7 +180,7 @@ mcpServers:
 
 ## Zed
 
-Editor settings (`Ctrl+,`) — add a `context_servers` entry:
+Editor settings (`Ctrl+,`) - add a `context_servers` entry:
 
 ```json
 {
@@ -224,7 +224,7 @@ extensions:
 A dedicated Thunderbird extension is available in the
 [`thunderbird-plugin/`](../thunderbird-plugin/) directory. It provides a
 natural language search panel that calls Claude CLI with this MCP server in
-the background. Requires Claude CLI — not compatible with other LLMs.
+the background. Requires Claude CLI - not compatible with other LLMs.
 
 ---
 

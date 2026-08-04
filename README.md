@@ -1,208 +1,133 @@
 # mcp-inbox
 
-> MCP server that gives any MCP-capable agent read/write access to your IMAP inbox, with a local SQLite cache for fast responses and IMAP IDLE for real-time updates.
+MCP server for IMAP/SMTP mail: read, search, compose, send, manage drafts and flags. Backed by a local SQLite cache with IMAP IDLE, so most reads never touch the network.
 
-Works with any IMAP/SMTP provider: Gmail, Outlook, Fastmail, iCloud, Proton Mail (via Bridge), Dovecot, hosted Exchange, self-hosted mail servers. Tools for listing and searching mail, composing and sending, managing drafts, inspecting attachment metadata. Cache stays in sync with the server via CONDSTORE + IDLE so most reads serve from local SQLite without a network round-trip.
+Works with any IMAP provider - Gmail, Outlook, Fastmail, iCloud, Proton (via Bridge), Dovecot, Exchange.
 
-**On attachments:** `imap_get_email` surfaces attachment metadata (filename, content type, size) by default - enough for the agent to describe what's attached without any download. When the agent genuinely needs to read content inside an attachment (search a PDF, extract a table from a CSV), `imap_get_attachment` fetches the bytes inline as base64 for one response. Nothing is cached on disk; re-requesting the same attachment refetches from the server.
+## Add it to your agent
 
----
+Node 24+. Nothing to install; the agent starts the server itself through `npx`.
 
-## Requirements
+**1.** Create `.mcp.json` in your project root:
 
-- **Node.js 24 LTS** or newer (`node --version` should print `v24.x` or higher).
-- An IMAP/SMTP account. Gmail and Outlook users need an **app password**, not the account password - see [Provider notes](#provider-notes).
-
----
-
-## Configure
-
-mcp-inbox reads credentials from environment variables. At minimum you need three:
-
+```json
+{
+  "mcpServers": {
+    "inbox": {
+      "command": "npx",
+      "args": ["-y", "@kbzowski/mcp-inbox"],
+      "env": {
+        "IMAP_USER": "you@example.com",
+        "IMAP_PASSWORD": "your-app-password",
+        "IMAP_HOST": "imap.example.com"
+      }
+    }
+  }
+}
 ```
-IMAP_USER=you@example.com
-IMAP_PASSWORD=your-app-password
-IMAP_HOST=imap.example.com
+
+**2.** Add it to `.gitignore`. That file holds a password.
+
+**3.** Restart the agent. Claude Code asks once to approve project-scoped servers; `/mcp` shows whether it connected. The tools then appear as `imap_*`.
+
+On Windows, if you get `spawn ENOENT`, use `"command": "cmd", "args": ["/c", "npx", "-y", "@kbzowski/mcp-inbox"]`.
+
+Claude Code can also write the file for you:
+
+```bash
+claude mcp add inbox --scope project \
+  --env IMAP_USER=you@example.com \
+  --env IMAP_PASSWORD='your-app-password' \
+  --env IMAP_HOST=imap.example.com \
+  -- npx -y @kbzowski/mcp-inbox
 ```
 
-The full list of variables (ports, TLS flags, cache tuning, IDLE folders) lives in [.env.example](.env.example).
+### Other clients
 
-How those env vars reach the server process depends on which MCP client you use. Every client below lets you set env per-server.
+The same `mcpServers` object works in `claude_desktop_config.json`, `~/.cursor/mcp.json` and `cline_mcp_settings.json`. VS Code reads `.vscode/mcp.json` and calls the key `servers`, not `mcpServers`. Codex CLI, Zed, Continue and Goose use their own formats: [docs/clients.md](docs/clients.md).
 
----
+### Credentials
 
-## Compatible clients
+Gmail, Outlook, Fastmail and iCloud all need an **app password**, not the account password.
 
-Works with any MCP-capable client over stdio. Confirmed integrations:
+| Provider | `IMAP_HOST` | `SMTP_HOST` | `SMTP_PORT` | `SMTP_SECURE` |
+|---|---|---|---|---|
+| Gmail | `imap.gmail.com` | `smtp.gmail.com` | `465` | `true` |
+| Outlook | `outlook.office365.com` | `smtp.office365.com` | `587` | `false` |
+| Fastmail | `imap.fastmail.com` | `smtp.fastmail.com` | `465` | `true` |
+| iCloud | `imap.mail.me.com` | `smtp.mail.me.com` | `587` | `false` |
+| Proton | `127.0.0.1` port `1143` (Bridge) | Bridge | | |
 
-| Client | Notes |
+Outlook fails on the `465`/`true` defaults; both overrides are required.
+
+## Tools
+
+All prefixed `imap_`. Read tools take `response_format: "markdown" | "json"` (default markdown) and `max_staleness_seconds` (default 60; serves cache when fresh, syncs otherwise). UIDs are folder-scoped, so every tool taking a `uid` also takes a `folder`.
+
+| Tool | Arguments |
 |---|---|
-| **Claude Code** (CLI) | `claude mcp add` |
-| **Claude Desktop** | `claude_desktop_config.json` |
-| **Cursor** | Settings UI or `~/.cursor/mcp.json` |
-| **VS Code** | Native MCP via `.vscode/mcp.json` |
-| **Cline** | `cline_mcp_settings.json` |
-| **Continue.dev** | `~/.continue/config.yaml` |
-| **Codex CLI** (OpenAI) | `~/.codex/config.toml` |
-| **Zed** | `context_servers` in editor settings |
-| **Goose** (Block) | `~/.config/goose/config.yaml` |
-| **Thunderbird** | Via [Claude Email Search plugin](thunderbird-plugin/) — Claude CLI only |
+| `imap_list_folders` | |
+| `imap_list_emails` | `folder?, limit?, offset?, unseen_only?, since_date?, before_date?` |
+| `imap_search_emails` | `folder?, subject?, from?, to?, body?, unseen?, flagged?, answered?, since_date?, before_date?, or?, not?` |
+| `imap_get_email` | `folder, uid` |
+| `imap_get_attachment` | `folder, uid, filename? \| part_id?, max_inline_mb?` |
+| `imap_list_drafts` | `folder?, limit?, offset?` |
+| `imap_get_draft` | `uid, folder?` |
+| `imap_mark_read` / `imap_mark_unread` | `folder, uid` |
+| `imap_set_flags` | `folder, uids, add?, remove?` |
+| `imap_move_to_folder` | `folder, uid, destination` |
+| `imap_delete_email` | `folder, uid, hard_delete?` |
+| `imap_create_draft` | `to, subject, body?, html?, cc?, bcc?, from?, attachments?, folder?` |
+| `imap_update_draft` | `uid, to, subject, body?, html?, cc?, bcc?, from?, attachments?, folder?` |
+| `imap_send_email` | `to, subject, body?, html?, cc?, bcc?, from?, attachments?` |
+| `imap_send_draft` | `uid, folder?` |
+| `imap_reply` | `folder, uid, body?, html?, reply_all?, cc?, bcc?, from?, attachments?, mark_answered?` |
+| `imap_forward` | `folder, uid, to, body?, cc?, bcc?, from?, attachments?` |
 
-For per-client config snippets see **[docs/clients.md](docs/clients.md)**.
+`imap_mark_read_multiple`, `imap_mark_unread_multiple`, `imap_move_multiple` and `imap_delete_multiple` take `uids` (max 500) instead of `uid`.
 
----
+Worth knowing:
 
-## Provider notes
+- `imap_get_email` returns attachment metadata only. `imap_get_attachment` fetches bytes as base64 for one response, capped at 5 MB (`max_inline_mb`, up to 50). Nothing is written to disk.
+- Outgoing `attachments` are `{ filename, content_base64, content_type? }`. Those bytes cross the model context - a 2 MB PDF is roughly 2.7M characters. To pass on a file you did not create, forward it.
+- `imap_forward` attaches the original verbatim as `.eml`, so its attachments, signatures and DKIM survive.
+- `imap_reply` sets `\Answered` on the original (`mark_answered: false` to skip) and carries the full `References` chain.
+- `imap_set_flags` writes `\Flagged` and `\Answered` only. Read state and deletion have their own tools.
+- `imap_delete_email` moves to Trash; `hard_delete: true` expunges.
+- `imap_update_draft` appends before deleting, so a mid-flight failure never loses the draft.
 
-### Gmail / Google Workspace
+`destructiveHint` is set on move, delete, and everything that sends.
 
-Use an **[app password](https://myaccount.google.com/apppasswords)**, not your account password. Requires 2-Step Verification turned on first.
+## Environment
 
-```
-IMAP_HOST=imap.gmail.com
-IMAP_PORT=993
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
-```
+| Variable | Default |
+|---|---|
+| `IMAP_USER` `IMAP_PASSWORD` `IMAP_HOST` | required |
+| `IMAP_PORT` | `993` |
+| `IMAP_TLS` | `true` |
+| `IMAP_TLS_REJECT_UNAUTHORIZED` | `true` |
+| `IMAP_AUTH_TIMEOUT_MS` | `10000` |
+| `SMTP_HOST` `SMTP_USER` `SMTP_PASSWORD` | falls back to the IMAP value |
+| `SMTP_PORT` | `465` |
+| `SMTP_SECURE` | `true` |
+| `IMAP_CACHE_DIR` | platform cache dir |
+| `IMAP_CACHE_DEFAULT_STALENESS_SEC` | `60` |
+| `IMAP_CACHE_BODY_RETAIN_DAYS` | `180` (`0` keeps forever) |
+| `IMAP_IDLE_ENABLED` | `true` |
+| `IMAP_IDLE_FOLDERS` | `INBOX` (empty disables) |
+| `DEBUG` | unset; try `mcp-inbox:*` |
 
-### Outlook / Microsoft 365
-
-```
-IMAP_HOST=outlook.office365.com
-IMAP_PORT=993
-SMTP_HOST=smtp.office365.com
-SMTP_PORT=587
-SMTP_SECURE=false
-```
-
-Outlook rejects the default `SMTP_PORT=465` setting - both `SMTP_PORT=587` and `SMTP_SECURE=false` are required. Personal accounts need an [app password](https://account.microsoft.com/security) if 2FA is on.
-
-### Fastmail
-
-Use an [app password](https://app.fastmail.com/settings/security/devicekeys/add) (account-level passwords are rejected).
-
-```
-IMAP_HOST=imap.fastmail.com
-SMTP_HOST=smtp.fastmail.com
-SMTP_PORT=465
-```
-
-### iCloud
-
-Requires an [app-specific password](https://account.apple.com) from your Apple ID security settings.
-
-```
-IMAP_HOST=imap.mail.me.com
-SMTP_HOST=smtp.mail.me.com
-SMTP_PORT=587
-SMTP_SECURE=false
-```
-
-### Proton Mail
-
-Proton Mail requires [Proton Mail Bridge](https://proton.me/mail/bridge) running locally; point mcp-inbox at the Bridge's advertised host/port (usually `127.0.0.1:1143` for IMAP).
-
----
+Empty values count as unset. Logs go to stderr.
 
 ## Troubleshooting
 
-### "IMAP authentication failed"
+**"IMAP authentication failed"** - you are using the account password instead of an app password.
 
-You're almost certainly using your account password instead of an app password. See the provider-specific links above.
+**Passwords containing `$`, `` ` ``, `!` or `\`** - put them in the config JSON, not on a command line. With `claude mcp add --env`, single-quote the value.
 
-### The client can't find `npx` / `spawn ENOENT`
+**"requires Node.js 24 or later"** - `node:sqlite` needs 24. Check what your client runs, not what your shell has.
 
-On Windows, some older clients don't resolve `.cmd` shims. Wrap the command:
-
-```json
-"command": "cmd",
-"args": ["/c", "npx", "-y", "@kbzowski/mcp-inbox"]
-```
-
-Or install globally and use the binary directly:
-
-```bash
-npm install -g @kbzowski/mcp-inbox
-# then set command: "mcp-inbox"  (no args)
-```
-
-### Passwords with shell-special characters
-
-If your password contains `$`, `` ` ``, `!`, or a backslash, put it in an env file / config JSON rather than passing it on a shell command line. The config files above handle this correctly; `claude mcp add --env IMAP_PASSWORD=...` works if you **single-quote** the value in your shell.
-
-### First-run takes a while
-
-The first `npx -y @kbzowski/mcp-inbox` invocation downloads the package. Subsequent runs are cached. If it looks hung on first boot, check your network.
-
-### "mcp-inbox requires Node.js 24 or later"
-
-The server requires Node 24 because `node:sqlite` (the built-in SQLite module it uses) gained its full API in Node 24. Run `node --version` to check which version your MCP client is using, and upgrade to Node 24 LTS if needed: https://nodejs.org/en/download
-
-### Verify the connection manually
-
-From any shell, set the env vars and run:
-
-```bash
-IMAP_USER=you@example.com IMAP_PASSWORD=... IMAP_HOST=imap.gmail.com npx -y @kbzowski/mcp-inbox
-```
-
-On success you'll see JSON log lines on stderr: `booting mcp-inbox` and `mcp-inbox ready`. The server then idles on stdin (waiting for MCP JSON-RPC). Hit `Ctrl+C` to stop.
-
----
-
-## Tool catalog
-
-All tools are prefixed `imap_` so they don't collide with other email MCPs. Every read tool accepts `response_format: "markdown" | "json"` (default markdown) and `max_staleness_seconds` (default 60 - serves from cache when fresh, syncs otherwise).
-
-### Discovery
-
-- **`imap_list_folders`** - list every mailbox with its path, delimiter, and RFC 6154 special-use attribute (`\Drafts`, `\Sent`, `\Trash`, `\Junk`).
-- **`imap_list_emails`** `(folder?, limit?, offset?, unseen_only?, since_date?, before_date?)` - paginated envelope list, newest first. Defaults to `INBOX`, 20 per page.
-- **`imap_search_emails`** `(folder?, subject?, from?, to?, body?, unseen?, flagged?, answered?, since_date?, before_date?)` - IMAP SEARCH on the server, returns matching envelopes from the cache. At least one criterion required. `flagged` and `answered` are three-state: `true` matches, `false` matches the negation, omitting them does not filter.
-
-### Reading
-
-- **`imap_get_email`** `(folder, uid)` - full message: headers, plain text, HTML, and attachment metadata (filename, content type, size).
-- **`imap_list_drafts`** `(folder?, limit?, offset?)` - same as list_emails but auto-resolves the Drafts folder via SPECIAL-USE.
-- **`imap_get_draft`** `(uid, folder?)` - full draft content by UID.
-- **`imap_get_attachment`** `(folder, uid, filename? | part_id?, max_inline_mb?)` - download an attachment as base64 bytes, inline in the response. Memory-only, no disk cache. Default cap is 5 MB; raise via `max_inline_mb` (up to 50).
-
-### Flagging / filing
-
-- **`imap_mark_read`** `(folder, uid)` - add `\Seen`. Idempotent.
-- **`imap_mark_unread`** `(folder, uid)` - remove `\Seen`. Idempotent.
-- **`imap_set_flags`** `(folder, uids, add?, remove?)` - set or clear `\Flagged` (the star / follow-up marker) and `\Answered` on up to 500 UIDs at once. Read/unread has its own tools; deleting does too, so neither `\Seen` nor `\Deleted` is accepted here.
-- **`imap_move_to_folder`** `(folder, uid, destination)` - IMAP MOVE with COPY+EXPUNGE fallback.
-- **`imap_delete_email`** `(folder, uid, hard_delete?)` - defaults to move-to-Trash. `hard_delete: true` permanently expunges.
-
-### Composing
-
-Attachments on the composing and sending tools take `{ filename, content_base64, content_type? }`. The bytes pass through the model context, so a 2 MB PDF costs roughly 2.7M characters - to relay a file the model did not create, `imap_forward` is far cheaper.
-
-- **`imap_create_draft`** `(to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - appends a new draft to the Drafts folder with the `\Draft` flag. nodemailer handles the RFC 2822 construction, so non-ASCII subjects, long bodies, and multipart text+HTML all just work.
-- **`imap_update_draft`** `(uid, to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - replaces an existing draft. Append-then-delete: the new draft is written first, only then is the old UID removed. A failure in the middle never loses the draft.
-
-### Sending
-
-- **`imap_send_email`** `(to, subject, body?, html?, cc?, bcc?, from?, attachments?)` - SMTP send + best-effort append to the Sent folder so the message shows up in the user's mail client.
-- **`imap_send_draft`** `(uid, folder?)` - fetches raw source of the draft, sends it exactly as written (preserves attachments and formatting), then deletes the draft.
-- **`imap_reply`** `(folder, uid, body?, html?, reply_all?, cc?, bcc?, from?, attachments?, mark_answered?)` - preserves threading via `In-Reply-To` / `References`. Subject gets a `Re: ` prefix. Sets `\Answered` on the original by default, so the thread reads as replied in the user's mail client.
-- **`imap_forward`** `(folder, uid, to, body?, cc?, bcc?, from?, attachments?)` - quotes the original inline, `Fwd: ` subject prefix, and attaches the untouched original as a `.eml` so its attachments, signatures and DKIM survive.
-
-### Tool annotations
-
-Every tool carries MCP annotations so clients can gate destructive actions:
-
-| Tool | readOnly | destructive | idempotent |
-|---|:-:|:-:|:-:|
-| list_folders / list_emails / get_email / search_emails / list_drafts / get_draft / get_attachment | ✓ | | ✓ |
-| mark_read / mark_unread / set_flags | | | ✓ |
-| move_to_folder / delete_email | | ✓ | |
-| create_draft / update_draft | | | |
-| send_email / send_draft / reply / forward | | ✓ | |
-
----
+**Check it works** - `IMAP_USER=... IMAP_PASSWORD=... IMAP_HOST=... npx -y @kbzowski/mcp-inbox`. You should get `mcp-inbox ready` on stderr; it then waits on stdin.
 
 ## License
 
