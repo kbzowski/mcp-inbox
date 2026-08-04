@@ -9,6 +9,8 @@ export const fakeConfig: EmbeddingsConfig = {
   dims: FAKE_DIMS,
   batchSize: 64,
   timeoutMs: 5_000,
+  sweepMinutes: 0,
+  sweepBatch: 200,
 };
 
 /**

@@ -28,6 +28,8 @@ describe('embeddings config', () => {
       dims: 1024,
       batchSize: 64,
       timeoutMs: 30_000,
+      sweepMinutes: 15,
+      sweepBatch: 200,
     });
     expect(cfg).not.toHaveProperty('apiKey');
   });
@@ -59,6 +61,8 @@ describe('embeddings config', () => {
       dims: 768,
       batchSize: 8,
       timeoutMs: 1000,
+      sweepMinutes: 15,
+      sweepBatch: 200,
     });
   });
 

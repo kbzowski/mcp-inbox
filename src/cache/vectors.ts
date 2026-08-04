@@ -28,6 +28,7 @@ export interface VectorRow {
 }
 
 export interface KnnHit {
+  folder: string;
   uid: number;
   distance: number;
 }
@@ -82,6 +83,16 @@ export function ensureVecTable(db: CacheDb, model: string, dims: number): void {
        )`,
     ),
   );
+}
+
+/** Folders opted in to semantic search, in a stable order. */
+export function indexedFolders(db: CacheDb): string[] {
+  return db
+    .select({ folder: vecIndexState.folder })
+    .from(vecIndexState)
+    .all()
+    .map((r) => r.folder)
+    .toSorted((a, b) => a.localeCompare(b));
 }
 
 export function getVecState(db: CacheDb, folder: string): VecIndexState | undefined {
@@ -176,27 +187,33 @@ export function deleteVectorsByUids(db: CacheDb, folder: string, uids: readonly 
  * Grouping happens outside the CTE, leaving `k` untouched. A message is ranked
  * by its single best chunk, not by an average: one sharply relevant paragraph
  * in a long mail should beat a uniformly vague short one.
+ *
+ * Omitting `folders` searches every indexed folder in one pass - vec0 scans
+ * all partitions when the partition key is unconstrained.
  */
 export function knnSearch(
   db: CacheDb,
-  folder: string,
   query: Float32Array,
   k: number,
-  opts: { sinceMs?: number; beforeMs?: number } = {},
+  opts: { folders?: readonly string[]; sinceMs?: number; beforeMs?: number } = {},
 ): KnnHit[] {
   const filters: SQL[] = [];
+  if (opts.folders !== undefined) {
+    const list = opts.folders.map((f) => sql`${f}`);
+    filters.push(sql` AND folder IN (${sql.join(list, sql`, `)})`);
+  }
   if (opts.sinceMs !== undefined) filters.push(sql` AND date >= ${int(opts.sinceMs)}`);
   if (opts.beforeMs !== undefined) filters.push(sql` AND date < ${int(opts.beforeMs)}`);
 
   return db.all<KnnHit>(sql`
     WITH knn AS MATERIALIZED (
-      SELECT uid, distance FROM vec_emails
+      SELECT folder, uid, distance FROM vec_emails
       WHERE embedding MATCH ${toBlob(query)}
         AND k = ${int(k)}
-        AND folder = ${folder}
         ${sql.join(filters, sql``)}
     )
-    SELECT uid, min(distance) AS distance FROM knn GROUP BY uid ORDER BY distance
+    SELECT folder, uid, min(distance) AS distance
+    FROM knn GROUP BY folder, uid ORDER BY distance
   `);
 }
 

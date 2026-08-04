@@ -70,7 +70,7 @@ All prefixed `imap_`. Read tools take `response_format: "markdown" | "json"` (de
 | `imap_list_emails` | `folder?, limit?, offset?, unseen_only?, since_date?, before_date?` |
 | `imap_search_emails` | `folder?, subject?, from?, to?, body?, unseen?, flagged?, answered?, since_date?, before_date?, or?, not?` |
 | `imap_semantic_search` | `query, folder?, limit?, since_date?, before_date?` |
-| `imap_index_folder` | `folder?, max_messages?` |
+| `imap_index_folder` | `folders?, max_messages?` |
 | `imap_get_email` | `folder, uid` |
 | `imap_get_attachment` | `folder, uid, filename? \| part_id?, max_inline_mb?` |
 | `imap_list_drafts` | `folder?, limit?, offset?` |
@@ -113,7 +113,9 @@ IMAP_EMBEDDINGS_BASE_URL=https://your-endpoint/v1
 IMAP_EMBEDDINGS_API_KEY=sk-...
 ```
 
-**Indexing is opt-in per folder.** Run `imap_index_folder` on a folder before searching it. That call sends each message's subject, sender, and body text to the configured endpoint. **Attachments are never downloaded or sent** - only the message's text part is fetched, which on a real mailbox is roughly 80x less data than the full messages. It is safe to re-run: already-indexed messages are skipped, so a large folder can be indexed over several calls. Mail that arrives afterwards is indexed by the next `imap_semantic_search` (up to 500 per call; the rest is reported as `pending_index`).
+**Indexing is opt-in per folder.** Run `imap_index_folder` on the folders you care about before searching them - it takes a list, and they share the call's `max_messages` budget. That call sends each message's subject, sender, and body text to the configured endpoint. **Attachments are never downloaded or sent** - only the message's text part is fetched, which on a real mailbox is roughly 80x less data than the full messages. It is safe to re-run: already-indexed messages are skipped, so a large folder can be indexed over several calls. Afterwards a background pass keeps every indexed folder current, so new mail becomes searchable on its own. It runs every `IMAP_EMBEDDINGS_SWEEP_MINUTES` (15 by default, `0` disables it) and embeds at most `IMAP_EMBEDDINGS_SWEEP_BATCH` messages per pass. Searching never writes, so its latency stays predictable; `pending_index` tells you when the index is still catching up.
+
+`imap_semantic_search` takes an optional `folder`. Omit it and every indexed folder is searched in one pass, with each result reporting the folder it came from.
 
 If your IMAP server refuses to serve individual body parts, indexing falls back to subjects and senders alone and says so: `bodies_indexed` comes back as zero.
 
@@ -144,6 +146,8 @@ Changing `IMAP_EMBEDDINGS_MODEL` or `IMAP_EMBEDDINGS_DIMS` drops the index - the
 | `IMAP_EMBEDDINGS_DIMS` | `1024` |
 | `IMAP_EMBEDDINGS_BATCH_SIZE` | `64` |
 | `IMAP_EMBEDDINGS_TIMEOUT_MS` | `30000` |
+| `IMAP_EMBEDDINGS_SWEEP_MINUTES` | `15` (`0` disables background indexing) |
+| `IMAP_EMBEDDINGS_SWEEP_BATCH` | `200` |
 | `IMAP_IDLE_ENABLED` | `true` |
 | `IMAP_IDLE_FOLDERS` | `INBOX` (empty disables) |
 | `DEBUG` | unset; try `mcp-inbox:*` |

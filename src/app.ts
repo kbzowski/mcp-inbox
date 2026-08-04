@@ -4,6 +4,7 @@ import { loadConfig, type AppConfig } from './config/env';
 import { DEFAULT_MIGRATIONS_FOLDER, openCache } from './cache/db';
 import { pruneBodiesBefore } from './cache/queries';
 import { IdleManager } from './cache/idle';
+import { IndexSweeper } from './cache/indexer';
 import { ImapClient } from './imap/client';
 import { SmtpClient } from './smtp/client';
 import { createMcpServer } from './server';
@@ -76,6 +77,19 @@ try {
     void idleManager.start();
   }
 
+  const sweeper =
+    config.embeddings !== null && cache.vectorsAvailable && config.embeddings.sweepMinutes > 0
+      ? new IndexSweeper({
+          db: cache.db,
+          imap: imapClient,
+          cfg: config.embeddings,
+          intervalMs: config.embeddings.sweepMinutes * 60_000,
+          budgetPerTick: config.embeddings.sweepBatch,
+          now: () => Date.now(),
+        })
+      : null;
+  sweeper?.start();
+
   const server = createMcpServer(ctx);
   const transport = new StdioServerTransport();
 
@@ -91,6 +105,7 @@ try {
         msg: err instanceof Error ? err.message : String(err),
       });
     }
+    sweeper?.stop();
     try {
       if (idleManager) await idleManager.stop();
     } catch (err) {

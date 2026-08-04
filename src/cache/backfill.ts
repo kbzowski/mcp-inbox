@@ -24,6 +24,21 @@ const log = createLogger('mcp-inbox:backfill');
  */
 export type BodyTextFetcher = (uids: readonly number[]) => Promise<TextBodies>;
 
+/**
+ * Cached messages still awaiting embedding across the given folders. Lives
+ * here rather than in vectors.ts, which must not import queries.ts - that
+ * module already imports vectors.ts for its delete hooks.
+ */
+export function pendingForFolders(db: CacheDb, folders: readonly string[]): number {
+  let total = 0;
+  for (const folder of folders) {
+    const state = getVecState(db, folder);
+    if (state === undefined) continue;
+    total += countEmailsOutsideUidRange(db, folder, state.fromUid, state.toUid);
+  }
+  return total;
+}
+
 export interface BackfillResult {
   embedded: number;
   remaining: number;

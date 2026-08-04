@@ -8,6 +8,7 @@ import {
   countVectors,
   ensureVecTable,
   getVecState,
+  indexedFolders,
   insertVectors,
   knnSearch,
   pruneOrphanedVectors,
@@ -88,7 +89,7 @@ describeIfVec('vec0 vector index', () => {
       { uid: 3, part: ENVELOPE_PART, date: 3000, vector: vec([0.9, 0.1, 0, 0]) },
     ]);
 
-    const hits = knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 3);
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 3, { folders: ['INBOX'] });
 
     expect(hits.map((h) => h.uid)).toEqual([1, 3, 2]);
     expect(hits[0]?.distance).toBeCloseTo(0);
@@ -100,7 +101,7 @@ describeIfVec('vec0 vector index', () => {
     insertVectors(cache.db, 'INBOX', [{ ...row, vector: vec([0, 1, 0, 0]) }]);
 
     expect(countVectors(cache.db, 'INBOX')).toBe(1);
-    const hits = knnSearch(cache.db, 'INBOX', vec([0, 1, 0, 0]), 10);
+    const hits = knnSearch(cache.db, vec([0, 1, 0, 0]), 10, { folders: ['INBOX'] });
     expect(hits).toHaveLength(1);
     expect(hits[0]?.distance).toBeCloseTo(0);
   });
@@ -113,7 +114,7 @@ describeIfVec('vec0 vector index', () => {
 
     expect(countVectors(cache.db, 'INBOX')).toBe(1);
     expect(rawRowCount('INBOX')).toBe(2);
-    expect(knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10)).toHaveLength(1);
+    expect(knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX'] })).toHaveLength(1);
   });
 
   it('ranks a message by its best chunk, not its average', () => {
@@ -124,7 +125,7 @@ describeIfVec('vec0 vector index', () => {
       { uid: 2, part: 0, date: 2000, vector: vec([0.7, 0.7, 0, 0]) },
     ]);
 
-    const hits = knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 20);
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 20, { folders: ['INBOX'] });
 
     expect(hits.map((h) => h.uid)).toEqual([1, 2]);
     expect(hits[0]?.distance).toBeCloseTo(0);
@@ -149,8 +150,52 @@ describeIfVec('vec0 vector index', () => {
       { uid: 1, part: ENVELOPE_PART, date: 1000, vector: vec([1, 0, 0, 0]) },
     ]);
 
-    expect(knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10)).toHaveLength(1);
+    expect(knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX'] })).toHaveLength(1);
     expect(countVectors(cache.db, 'Sent')).toBe(1);
+  });
+
+  it('searches every folder when none is named', () => {
+    insertVectors(cache.db, 'INBOX', [
+      { uid: 1, part: ENVELOPE_PART, date: 1000, vector: vec([0, 1, 0, 0]) },
+    ]);
+    insertVectors(cache.db, 'Archives.2019', [
+      { uid: 7, part: ENVELOPE_PART, date: 1000, vector: vec([1, 0, 0, 0]) },
+    ]);
+
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 10);
+
+    expect(hits.map((h) => `${h.folder}:${String(h.uid)}`)).toEqual(['Archives.2019:7', 'INBOX:1']);
+  });
+
+  it('restricts to a subset of folders when several are named', () => {
+    for (const folder of ['INBOX', 'Sent', 'Dydaktyka']) {
+      insertVectors(cache.db, folder, [
+        { uid: 1, part: ENVELOPE_PART, date: 1000, vector: vec([1, 0, 0, 0]) },
+      ]);
+    }
+
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX', 'Dydaktyka'] });
+
+    expect(hits.map((h) => h.folder).toSorted()).toEqual(['Dydaktyka', 'INBOX']);
+  });
+
+  it('keeps the same uid in two folders apart', () => {
+    insertVectors(cache.db, 'INBOX', [
+      { uid: 5, part: ENVELOPE_PART, date: 1000, vector: vec([1, 0, 0, 0]) },
+    ]);
+    insertVectors(cache.db, 'Sent', [
+      { uid: 5, part: ENVELOPE_PART, date: 1000, vector: vec([0.9, 0.1, 0, 0]) },
+    ]);
+
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 10);
+
+    expect(hits).toHaveLength(2);
+    expect(new Set(hits.map((h) => h.folder))).toEqual(new Set(['INBOX', 'Sent']));
+  });
+
+  it('lists indexed folders in a stable order', () => {
+    for (const folder of ['Sent', 'INBOX', 'Archives.2019']) seedState(folder);
+    expect(indexedFolders(cache.db)).toEqual(['Archives.2019', 'INBOX', 'Sent']);
   });
 
   it('applies the date window inside the scan', () => {
@@ -159,7 +204,7 @@ describeIfVec('vec0 vector index', () => {
       { uid: 2, part: ENVELOPE_PART, date: 5000, vector: vec([1, 0, 0, 0]) },
     ]);
 
-    const hits = knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10, { sinceMs: 2000 });
+    const hits = knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX'], sinceMs: 2000 });
 
     expect(hits.map((h) => h.uid)).toEqual([2]);
   });
@@ -170,7 +215,7 @@ describeIfVec('vec0 vector index', () => {
         { uid: 1, part: ENVELOPE_PART, date: null, vector: vec([1, 0, 0, 0]) },
       ]);
     }).not.toThrow();
-    expect(knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10)).toHaveLength(1);
+    expect(knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX'] })).toHaveLength(1);
   });
 
   it('drops the vector when the cached email is deleted', () => {
@@ -183,7 +228,9 @@ describeIfVec('vec0 vector index', () => {
 
     deleteEmail(cache.db, 'INBOX', 1);
 
-    expect(knnSearch(cache.db, 'INBOX', vec([1, 0, 0, 0]), 10).map((h) => h.uid)).toEqual([2]);
+    expect(
+      knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: ['INBOX'] }).map((h) => h.uid),
+    ).toEqual([2]);
   });
 
   it('wipes the partition and resets the range when the folder is invalidated', () => {
@@ -223,7 +270,9 @@ describeIfVec('vec0 vector index', () => {
 
     expect(pruneOrphanedVectors(cache.db, 'INBOX')).toBe(1);
     expect(countVectors(cache.db, 'INBOX')).toBe(1);
-    expect(knnSearch(cache.db, 'INBOX', vec([0, 1, 0, 0]), 10).map((h) => h.uid)).toEqual([1]);
+    expect(
+      knnSearch(cache.db, vec([0, 1, 0, 0]), 10, { folders: ['INBOX'] }).map((h) => h.uid),
+    ).toEqual([1]);
   });
 
   it('prunes nothing when the index is consistent', () => {

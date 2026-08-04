@@ -1,20 +1,13 @@
 import { z } from 'zod';
 import { defineTool } from '../define-tool';
-import { bodyFetcherFor, projectEmailSummary, requireEmbeddings, syncIfStale } from './shared';
-import { backfillFolder } from '../../cache/backfill';
-import { ensureVecTable, knnSearch } from '../../cache/vectors';
+import { projectEmailSummary, requireEmbeddings, syncIfStale } from './shared';
+import { ensureVecTable, indexedFolders, knnSearch } from '../../cache/vectors';
+import { pendingForFolders } from '../../cache/backfill';
 import { embedTexts } from '../../embeddings/client';
 import { getEmailsByUids } from '../../cache/queries';
 import { formatSemanticResultsMarkdown } from '../../formatters/markdown';
 import { EmbeddingError } from '../../errors/types';
 import type { Email } from '../../cache/schema';
-
-/**
- * Messages that arrived since the last index run are embedded inline before
- * searching, so fresh mail is findable without a manual step. Bounded so a
- * search after a long gap cannot turn into hundreds of HTTP round-trips.
- */
-const SEARCH_BACKFILL_BUDGET = 500;
 
 /**
  * A message occupies several rows in the index - one per body chunk plus its
@@ -29,7 +22,11 @@ const Input = z.object({
     .string()
     .min(1)
     .describe('Natural-language description of the message you are looking for.'),
-  folder: z.string().min(1).default('INBOX'),
+  folder: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('Restrict the search to one folder. Omit to search every indexed folder at once.'),
   limit: z.number().int().min(1).max(50).default(10),
   since_date: z.string().date().optional(),
   before_date: z.string().date().optional(),
@@ -39,7 +36,7 @@ const Input = z.object({
     .min(0)
     .optional()
     .describe(
-      'Sync the folder first if its cache is older than this. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
+      'Sync the folder first if its cache is older than this. Ignored when no folder is given. Defaults to IMAP_CACHE_DEFAULT_STALENESS_SEC.',
     ),
   response_format: z.enum(['markdown', 'json']).default('markdown'),
 });
@@ -60,17 +57,19 @@ export const semanticSearchTool = defineTool({
 
     ensureVecTable(ctx.db, cfg.model, cfg.dims);
 
-    await syncIfStale(ctx, args.folder, args.max_staleness_seconds);
+    const folders = args.folder === undefined ? indexedFolders(ctx.db) : [args.folder];
+    if (folders.length === 0) {
+      throw new EmbeddingError(
+        'EMBEDDING_NOT_INDEXED',
+        'No folder has been indexed for semantic search yet. Run imap_index_folder first, or use imap_search_emails.',
+      );
+    }
 
-    const { remaining } = await backfillFolder(
-      ctx.db,
-      args.folder,
-      cfg,
-      SEARCH_BACKFILL_BUDGET,
-      'newer',
-      ctx.now,
-      bodyFetcherFor(ctx, args.folder),
-    );
+    if (args.folder !== undefined) {
+      await syncIfStale(ctx, args.folder, args.max_staleness_seconds);
+    }
+
+    const remaining = pendingForFolders(ctx.db, folders);
 
     const [queryVector] = await embedTexts([args.query], cfg);
     if (queryVector === undefined) {
@@ -80,23 +79,30 @@ export const semanticSearchTool = defineTool({
       );
     }
 
-    const hits = knnSearch(ctx.db, args.folder, queryVector, args.limit * OVERFETCH_FACTOR, {
+    const hits = knnSearch(ctx.db, queryVector, args.limit * OVERFETCH_FACTOR, {
+      ...(args.folder !== undefined && { folders }),
       ...(args.since_date !== undefined && { sinceMs: Date.parse(args.since_date) }),
       ...(args.before_date !== undefined && { beforeMs: Date.parse(args.before_date) }),
     });
 
-    const cached = getEmailsByUids(
-      ctx.db,
-      args.folder,
-      hits.map((h) => h.uid),
-    );
+    const byFolder = new Map<string, number[]>();
+    for (const hit of hits) {
+      const bucket = byFolder.get(hit.folder);
+      if (bucket === undefined) byFolder.set(hit.folder, [hit.uid]);
+      else bucket.push(hit.uid);
+    }
+    const cached = new Map<string, Map<number, Email>>();
+    for (const [folder, uids] of byFolder) {
+      cached.set(folder, getEmailsByUids(ctx.db, folder, uids));
+    }
+
     const ranked = hits
-      .map((hit) => ({ hit, email: cached.get(hit.uid) }))
+      .map((hit) => ({ hit, email: cached.get(hit.folder)?.get(hit.uid) }))
       .filter((r): r is { hit: (typeof hits)[number]; email: Email } => r.email !== undefined)
       .slice(0, args.limit);
 
     const structured = {
-      folder: args.folder,
+      folders,
       query: args.query,
       returned: ranked.length,
       pending_index: remaining,

@@ -46,6 +46,8 @@ const EnvSchema = z
     IMAP_EMBEDDINGS_DIMS: z.coerce.number().int().min(1).max(8192).default(1024),
     IMAP_EMBEDDINGS_BATCH_SIZE: z.coerce.number().int().min(1).max(512).default(64),
     IMAP_EMBEDDINGS_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+    IMAP_EMBEDDINGS_SWEEP_MINUTES: z.coerce.number().int().min(0).max(1440).default(15),
+    IMAP_EMBEDDINGS_SWEEP_BATCH: z.coerce.number().int().min(1).max(5_000).default(200),
 
     // IDLE
     IMAP_IDLE_ENABLED: BooleanString.default(true),
@@ -88,6 +90,8 @@ const EnvSchema = z
             dims: raw.IMAP_EMBEDDINGS_DIMS,
             batchSize: raw.IMAP_EMBEDDINGS_BATCH_SIZE,
             timeoutMs: raw.IMAP_EMBEDDINGS_TIMEOUT_MS,
+            sweepMinutes: raw.IMAP_EMBEDDINGS_SWEEP_MINUTES,
+            sweepBatch: raw.IMAP_EMBEDDINGS_SWEEP_BATCH,
           },
     idle: {
       enabled: raw.IMAP_IDLE_ENABLED,

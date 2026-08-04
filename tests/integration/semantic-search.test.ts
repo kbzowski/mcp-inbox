@@ -60,7 +60,7 @@ describeIfGreenmail('integration: semantic search over a real mailbox', () => {
 
     const res = await indexFolderTool.handler(
       {
-        folder: 'INBOX',
+        folders: ['INBOX'],
         max_messages: 500,
         max_staleness_seconds: 0,
         response_format: 'json',
@@ -124,7 +124,7 @@ describeIfGreenmail('integration: semantic search over a real mailbox', () => {
 
     const res = await indexFolderTool.handler(
       {
-        folder: 'INBOX',
+        folders: ['INBOX'],
         max_messages: 500,
         max_staleness_seconds: 60,
         response_format: 'json',

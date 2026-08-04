@@ -66,6 +66,8 @@ Off unless `IMAP_EMBEDDINGS_BASE_URL` is set. `imap_index_folder` builds a per-f
 - **`bodyParts` returns transfer-encoded bytes.** Only `download()` decodes, and it is `fetchOne`-based so it cannot be used in bulk. `decodeTextPart` handles base64, quoted-printable and the charset. Response keys are lower-cased.
 - **Fetched body text is never written to `emails.bodyText`.** That column's contract includes attachment metadata and `bodyCachedAt`; a partial write would make `imap_get_email` report zero attachments.
 - **`INDEX_VERSION` in `vectors.ts` forces a rebuild.** Bump it whenever the meaning of an indexed row changes; `ensureVecTable` then drops the index and the next `imap_index_folder` re-embeds. Say so in the changeset - users pay for it in wall-clock.
+- **Search reads, the sweeper writes.** `IndexSweeper` (`cache/indexer.ts`) is the only thing that tops up the index in the background; `imap_semantic_search` must stay a pure reader so its latency is predictable. Don't reintroduce inline backfill there.
+- Omitting `folder` in `imap_semantic_search` searches every indexed folder: vec0 scans all partitions when the partition key is unconstrained, and each hit carries its own `folder`.
 - Throughput on real hardware is ~4 messages/second end to end. `max_messages` defaults to 500 (~2 min) because a longer tool call trips MCP client timeouts.
 
 ## Common pitfalls

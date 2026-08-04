@@ -1,4 +1,5 @@
 import type { ImapFlow, MessageStructureObject } from 'imapflow';
+import type { ImapClient } from './client';
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('mcp-inbox:body-text');
@@ -119,6 +120,40 @@ export async function fetchTextBodies(
   }
 
   return { texts, expected: parts.size };
+}
+
+/**
+ * Wrap `fetchTextBodies` with connection and lock handling for the indexer.
+ *
+ * The lock is taken and released around the fetch alone, never across the
+ * embedding round-trips that follow: one connection serves every tool, so
+ * holding it for a full indexing run would stall the whole server.
+ *
+ * A failure yields `expected: 0`, which reads as "nothing to say about
+ * bodies" rather than "this server has none", so a transient connection
+ * error does not switch body indexing off for the rest of the run.
+ */
+export function bodyFetcherFor(
+  client: ImapClient,
+  folder: string,
+): (uids: readonly number[]) => Promise<TextBodies> {
+  return async (uids) => {
+    try {
+      const imap = await client.connection();
+      const lock = await imap.getMailboxLock(folder);
+      try {
+        return await fetchTextBodies(imap, uids);
+      } finally {
+        lock.release();
+      }
+    } catch (err) {
+      log.warn('could not fetch body text', {
+        folder,
+        msg: err instanceof Error ? err.message : String(err),
+      });
+      return { texts: new Map(), expected: 0 };
+    }
+  };
 }
 
 function isAttachment(node: MessageStructureObject): boolean {
