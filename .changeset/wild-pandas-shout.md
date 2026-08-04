@@ -19,3 +19,6 @@ Cache layer refresh.
 `IMAP_CACHE_ENABLED`, `IMAP_CACHE_BODY_INLINE` and `IMAP_CACHE_RETAIN_DAYS` are
 gone. None of them ever affected behaviour. They are now ignored rather than
 documented, so existing configs keep working unchanged.
+
+The published tarball no longer carries source maps, which nothing was reading.
+It drops from 97 kB to 45 kB.
