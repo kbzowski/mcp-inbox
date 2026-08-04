@@ -38,6 +38,17 @@ const EnvSchema = z
     IMAP_CACHE_DEFAULT_STALENESS_SEC: z.coerce.number().int().min(0).default(60),
     IMAP_CACHE_BODY_RETAIN_DAYS: z.coerce.number().int().min(0).default(180),
 
+    // Embeddings (semantic search). Gated on BASE_URL rather than API_KEY -
+    // a self-hosted endpoint may not require a key at all.
+    IMAP_EMBEDDINGS_BASE_URL: z.url().optional(),
+    IMAP_EMBEDDINGS_API_KEY: z.string().min(1).optional(),
+    IMAP_EMBEDDINGS_MODEL: z.string().min(1).default('arctic-embed-l-v2'),
+    IMAP_EMBEDDINGS_DIMS: z.coerce.number().int().min(1).max(8192).default(1024),
+    IMAP_EMBEDDINGS_BATCH_SIZE: z.coerce.number().int().min(1).max(512).default(64),
+    IMAP_EMBEDDINGS_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+    IMAP_EMBEDDINGS_SWEEP_MINUTES: z.coerce.number().int().min(0).max(1440).default(15),
+    IMAP_EMBEDDINGS_SWEEP_BATCH: z.coerce.number().int().min(1).max(5_000).default(200),
+
     // IDLE
     IMAP_IDLE_ENABLED: BooleanString.default(true),
     IMAP_IDLE_FOLDERS: CsvList.default(['INBOX']),
@@ -67,6 +78,21 @@ const EnvSchema = z
       defaultStalenessSec: raw.IMAP_CACHE_DEFAULT_STALENESS_SEC,
       bodyRetainDays: raw.IMAP_CACHE_BODY_RETAIN_DAYS,
     },
+    embeddings:
+      raw.IMAP_EMBEDDINGS_BASE_URL === undefined
+        ? null
+        : {
+            baseUrl: raw.IMAP_EMBEDDINGS_BASE_URL.replace(/\/+$/, ''),
+            ...(raw.IMAP_EMBEDDINGS_API_KEY !== undefined && {
+              apiKey: raw.IMAP_EMBEDDINGS_API_KEY,
+            }),
+            model: raw.IMAP_EMBEDDINGS_MODEL,
+            dims: raw.IMAP_EMBEDDINGS_DIMS,
+            batchSize: raw.IMAP_EMBEDDINGS_BATCH_SIZE,
+            timeoutMs: raw.IMAP_EMBEDDINGS_TIMEOUT_MS,
+            sweepMinutes: raw.IMAP_EMBEDDINGS_SWEEP_MINUTES,
+            sweepBatch: raw.IMAP_EMBEDDINGS_SWEEP_BATCH,
+          },
     idle: {
       enabled: raw.IMAP_IDLE_ENABLED,
       folders: raw.IMAP_IDLE_FOLDERS,
@@ -75,6 +101,8 @@ const EnvSchema = z
   }));
 
 export type AppConfig = z.infer<typeof EnvSchema>;
+
+export type EmbeddingsConfig = NonNullable<AppConfig['embeddings']>;
 
 function defaultCacheDir(): string {
   if (platform() === 'win32') {

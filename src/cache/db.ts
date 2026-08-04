@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
+import * as sqliteVec from 'sqlite-vec';
 import * as schema from './schema';
 import { CacheError } from '../errors/types';
 import { createLogger } from '../utils/logger';
@@ -23,6 +24,12 @@ export type CacheDb = ReturnType<typeof drizzle<typeof schema>>;
 
 export interface CacheHandle {
   db: CacheDb;
+  /**
+   * Whether the sqlite-vec extension loaded. False on platforms with no
+   * prebuilt binary (win32-arm64, Alpine/musl); the semantic-search tools
+   * refuse to run and every other tool is unaffected.
+   */
+  vectorsAvailable: boolean;
   /** Release the underlying SQLite connection. Safe to call more than once. */
   close: () => void;
 }
@@ -55,7 +62,7 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
 
   let sqlite: DatabaseSync;
   try {
-    sqlite = new DatabaseSync(path);
+    sqlite = new DatabaseSync(path, { allowExtension: true });
   } catch (err) {
     throw new CacheError('CACHE_IO_FAILED', diagnoseOpenError(path, err), err);
   }
@@ -65,6 +72,8 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
   sqlite.exec('PRAGMA journal_mode = WAL;');
   sqlite.exec('PRAGMA foreign_keys = ON;');
   sqlite.exec('PRAGMA synchronous = NORMAL;');
+
+  const vectorsAvailable = loadVectorExtension(sqlite);
 
   const db = drizzle({ client: sqlite, schema });
 
@@ -84,6 +93,7 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
 
   return {
     db,
+    vectorsAvailable,
     close: () => {
       try {
         sqlite.close();
@@ -94,6 +104,30 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
       }
     },
   };
+}
+
+/**
+ * Extension loading is re-disabled in `finally` so the window in which this
+ * process can dlopen arbitrary native code is three statements wide rather
+ * than the whole process lifetime.
+ */
+function loadVectorExtension(sqlite: DatabaseSync): boolean {
+  try {
+    sqlite.enableLoadExtension(true);
+    sqliteVec.load(sqlite);
+    return true;
+  } catch (err) {
+    log.warn('sqlite-vec unavailable - semantic search tools will be disabled', {
+      msg: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  } finally {
+    try {
+      sqlite.enableLoadExtension(false);
+    } catch {
+      // Nothing to re-disable when enabling itself was what failed.
+    }
+  }
 }
 
 /**

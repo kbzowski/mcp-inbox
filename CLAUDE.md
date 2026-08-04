@@ -23,9 +23,10 @@ src/
 ├── server.ts          # MCP Server wiring
 ├── config/env.ts      # Zod env loader
 ├── tools/             # One file per tool; self-registering
-├── imap/              # ImapFlow client, folder discovery, MIME builder
+├── imap/              # ImapFlow client, folder discovery, MIME builder, text-part fetch
 ├── smtp/              # Nodemailer transporter
-├── cache/             # Drizzle schema, sync engine, IDLE listener
+├── embeddings/        # Embeddings HTTP client + quote stripping / chunking
+├── cache/             # Drizzle schema, sync engine, IDLE listener, vector index
 ├── errors/            # Error hierarchy + raw-error mapper
 ├── formatters/        # markdown + json response formatters
 ├── utils/             # logger, assertions
@@ -40,6 +41,8 @@ src/
 - **Never make a tool both listed and undispatched, or dispatched without a listing.** The registry handles this automatically; don't bypass it.
 - **IMAP UIDs are folder-scoped.** Every tool that accepts a `uid` must also accept a `folder`. Don't assume INBOX.
 - **Drafts**: `update_draft` is append-then-delete, never delete-then-append - a failure in the middle must not lose the user's draft.
+- **Semantic search must never become load-bearing.** It is optional, opt-in per folder, and unavailable on some platforms. Every failure path has to name `imap_search_emails` as the fallback, and no existing tool may start depending on the vector index.
+- **Never hold the mailbox lock across an HTTP call.** One IMAP connection serves the whole server, so an embeddings round-trip inside a lock stalls every other tool.
 
 ## Cache layer
 
@@ -49,6 +52,23 @@ src/
 - Retention: message bodies are the only unbounded part of the cache, so `IMAP_CACHE_BODY_RETAIN_DAYS` (default 180, `0` disables) clears bodies older than that at startup. Envelopes stay - they're small and drive list/search.
 - Any query with an `IN (...)` over UIDs must batch. SQLite caps a statement at 32766 bound parameters and real folders exceed that; `inBatches()` in `queries.ts` is the shared helper.
 - IDLE is on by default for INBOX via `IMAP_IDLE_FOLDERS`. Empty string disables.
+
+## Semantic search (optional feature)
+
+Off unless `IMAP_EMBEDDINGS_BASE_URL` is set. `imap_index_folder` builds a per-folder vector index; `imap_semantic_search` reads it. Vectors live in `vec_emails`, a `vec0` virtual table inside the same SQLite cache, via the `sqlite-vec` extension.
+
+- **`sqlite-vec` is the one native dependency**, and the only break from the zero-native-deps rule. It ships no binary for **win32-arm64 or Alpine/musl**; there `openCache` sets `vectorsAvailable: false`, the two tools fail with an actionable error, and everything else works. Keep it a regular `dependency`: as an `optionalDependency` the static import would throw `ERR_MODULE_NOT_FOUND` before any try/catch could run.
+- **The `vec0` table is created lazily, never in a migration.** `CREATE VIRTUAL TABLE ... USING vec0` throws where the extension is missing, and a failing migration is a fatal startup error - it would take the whole server down, not just this feature.
+- **Every integer bound into a vec0 statement must be a `BigInt`.** `node:sqlite` binds JS numbers as FLOAT and vec0 rejects that for its INTEGER columns (`Expected integer ... received FLOAT`). `int()` in `vectors.ts` is the helper.
+- **`k = ?` is mandatory in a KNN query** and the CTE must stay `MATERIALIZED`, or the planner inlines the scan and loses the constraint. Group by `uid` *outside* the CTE.
+- **A message owns several rows** - `part 0` is the envelope, `part 1..n` are body chunks - so `insertVectors` deletes per `uid` (not per `uid, part`), and anything counting messages needs `count(DISTINCT uid)`.
+- **Fetch only the text part, never full RFC822.** Measured on a real 1534-message INBOX: 284 MB of full messages versus ~3.4 MB of text. Use `pickTextPart` + `bodyParts`, and request part **`1`** for a single-part message - GreenMail returns zero bytes for `TEXT` there, while both it and Dovecot accept `1`. Only leaf `text/*` nodes qualify; a `multipart/alternative` child fetched by id returns raw MIME with boundaries.
+- **`bodyParts` returns transfer-encoded bytes.** Only `download()` decodes, and it is `fetchOne`-based so it cannot be used in bulk. `decodeTextPart` handles base64, quoted-printable and the charset. Response keys are lower-cased.
+- **Fetched body text is never written to `emails.bodyText`.** That column's contract includes attachment metadata and `bodyCachedAt`; a partial write would make `imap_get_email` report zero attachments.
+- **`INDEX_VERSION` in `vectors.ts` forces a rebuild.** Bump it whenever the meaning of an indexed row changes; `ensureVecTable` then drops the index and the next `imap_index_folder` re-embeds. Say so in the changeset - users pay for it in wall-clock.
+- **Search reads, the sweeper writes.** `IndexSweeper` (`cache/indexer.ts`) is the only thing that tops up the index in the background; `imap_semantic_search` must stay a pure reader so its latency is predictable. Don't reintroduce inline backfill there.
+- Omitting `folder` in `imap_semantic_search` searches every indexed folder: vec0 scans all partitions when the partition key is unconstrained, and each hit carries its own `folder`.
+- Throughput on real hardware is ~4 messages/second end to end. `max_messages` defaults to 500 (~2 min) because a longer tool call trips MCP client timeouts.
 
 ## Common pitfalls
 

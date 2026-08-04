@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, inArray, lt, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { CacheDb } from './db';
 import { createLogger } from '../utils/logger';
+import { deleteVectorsByFolder, deleteVectorsByUids } from './vectors';
 import {
   folders,
   emails,
@@ -185,6 +186,60 @@ export function countEmailsInFolder(
   return row?.n ?? 0;
 }
 
+export interface IndexCandidateOptions {
+  aboveUid?: number;
+  belowUid?: number;
+  limit: number;
+  order: 'asc' | 'desc';
+}
+
+/**
+ * Cached envelopes on one side of the embedded UID range, oldest- or
+ * newest-first. Drives the semantic index backfill, which walks outward
+ * from the contiguous range recorded in `vec_index_state`.
+ */
+export function listIndexCandidates(
+  db: CacheDb,
+  folder: string,
+  opts: IndexCandidateOptions,
+): Email[] {
+  const conditions: SQL[] = [eq(emails.folder, folder)];
+  if (opts.aboveUid !== undefined) conditions.push(gt(emails.uid, opts.aboveUid));
+  if (opts.belowUid !== undefined) conditions.push(lt(emails.uid, opts.belowUid));
+
+  return db
+    .select()
+    .from(emails)
+    .where(and(...conditions))
+    .orderBy(opts.order === 'asc' ? asc(emails.uid) : desc(emails.uid))
+    .limit(opts.limit)
+    .all();
+}
+
+/**
+ * How many cached messages fall outside the embedded range. `fromUid === 0
+ * && toUid === 0` means nothing is embedded yet - UIDs start at 1, so zero
+ * is a safe empty sentinel.
+ */
+export function countEmailsOutsideUidRange(
+  db: CacheDb,
+  folder: string,
+  fromUid: number,
+  toUid: number,
+): number {
+  const outside =
+    fromUid === 0 && toUid === 0 ? undefined : or(lt(emails.uid, fromUid), gt(emails.uid, toUid));
+
+  const row = db
+    .select({ n: sql<number>`count(*)` })
+    .from(emails)
+    .where(
+      outside === undefined ? eq(emails.folder, folder) : and(eq(emails.folder, folder), outside),
+    )
+    .get();
+  return row?.n ?? 0;
+}
+
 /**
  * Return every cached UID for a folder. Used by the sync reconciliation
  * path to detect ghost entries (UIDs we have locally that are gone on
@@ -294,6 +349,7 @@ function flagsEqual(a: string[], b: string[]): boolean {
  */
 export function deleteEmailsByFolder(db: CacheDb, folder: string): void {
   db.delete(emails).where(eq(emails.folder, folder)).run();
+  deleteVectorsByFolder(db, folder);
 }
 
 /**
@@ -304,6 +360,7 @@ export function deleteEmail(db: CacheDb, folder: string, uid: number): void {
   db.delete(emails)
     .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))
     .run();
+  deleteVectorsByUids(db, folder, [uid]);
 }
 
 /**
@@ -317,6 +374,7 @@ export function deleteEmailsByUids(db: CacheDb, folder: string, uids: number[]):
       .where(and(eq(emails.folder, folder), inArray(emails.uid, batch)))
       .run();
   });
+  deleteVectorsByUids(db, folder, uids);
 }
 
 /**

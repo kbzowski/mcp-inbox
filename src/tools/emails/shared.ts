@@ -1,6 +1,7 @@
 import { simpleParser } from 'mailparser';
 import type { ToolContext } from '../define-tool';
-import { ImapError } from '../../errors/types';
+import { EmbeddingError, ImapError } from '../../errors/types';
+import type { EmbeddingsConfig } from '../../config/env';
 import { mapImapError } from '../../errors/mapper';
 import { syncFolder } from '../../cache/sync';
 import {
@@ -34,6 +35,27 @@ export async function syncIfStale(
     await syncFolder({ db: ctx.db, imap }, folder);
   }
   return stale;
+}
+
+/**
+ * Guards for the two semantic-search tools. Both messages name
+ * imap_search_emails because they are what the model reads when it has to
+ * pick a different tool - `server.ts` surfaces `userMessage` verbatim.
+ */
+export function requireEmbeddings(ctx: ToolContext): EmbeddingsConfig {
+  if (ctx.embeddings === null) {
+    throw new EmbeddingError(
+      'EMBEDDING_DISABLED',
+      'Semantic search is not configured on this server (IMAP_EMBEDDINGS_BASE_URL is unset). Use imap_search_emails instead - it searches subject, sender, and body text server-side.',
+    );
+  }
+  if (!ctx.vectorsAvailable) {
+    throw new EmbeddingError(
+      'EMBEDDING_INDEX_UNAVAILABLE',
+      'Semantic search is unavailable: the sqlite-vec extension has no build for this platform (win32-arm64 and Alpine/musl are unsupported). Use imap_search_emails instead.',
+    );
+  }
+  return ctx.embeddings;
 }
 
 /**
