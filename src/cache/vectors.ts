@@ -197,6 +197,10 @@ export function knnSearch(
   k: number,
   opts: { folders?: readonly string[]; sinceMs?: number; beforeMs?: number } = {},
 ): KnnHit[] {
+  // An empty list means "no folder qualifies", not "every folder" - and it
+  // would compile to `folder IN ()`, which SQLite rejects outright.
+  if (opts.folders?.length === 0) return [];
+
   const filters: SQL[] = [];
   if (opts.folders !== undefined) {
     const list = opts.folders.map((f) => sql`${f}`);

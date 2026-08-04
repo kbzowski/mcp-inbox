@@ -83,6 +83,7 @@ describe('formatEmailListMarkdown', () => {
 function ranked(overrides: Partial<RankedEmailSummary> = {}): RankedEmailSummary {
   return {
     uid: 42,
+    folder: 'INBOX',
     subject: 'Payment receipt 4417',
     from: 'billing@hosting.example',
     date: '2026-04-17T08:00:00.000Z',
@@ -100,9 +101,19 @@ describe('formatSemanticResultsMarkdown', () => {
 
   it('renders the score so the caller can weigh each hit', () => {
     const out = formatSemanticResultsMarkdown([ranked()], 0);
-    expect(out).toContain('| # | Score | Flags | From | Subject | Date | UID |');
+    expect(out).toContain('| # | Score | Flags | From | Subject | Date | Folder | UID |');
     expect(out).toContain('| 1 | 0.512 |');
     expect(out).toContain('Payment receipt 4417');
+  });
+
+  it('shows the folder, without which a folder-scoped uid is unusable', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ uid: 7, folder: 'Archives.2019' })], 0);
+    expect(out).toContain('| Archives.2019 | 7 |');
+  });
+
+  it('escapes a pipe in the folder name', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ folder: 'a|b' })], 0);
+    expect(out).toContain(String.raw`a\|b`);
   });
 
   it('warns that the absolute value is not a threshold', () => {

@@ -193,6 +193,15 @@ describeIfVec('vec0 vector index', () => {
     expect(new Set(hits.map((h) => h.folder))).toEqual(new Set(['INBOX', 'Sent']));
   });
 
+  it('returns nothing for an empty folder list instead of malformed SQL', () => {
+    insertVectors(cache.db, 'INBOX', [
+      { uid: 1, part: ENVELOPE_PART, date: 1000, vector: vec([1, 0, 0, 0]) },
+    ]);
+
+    expect(() => knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: [] })).not.toThrow();
+    expect(knnSearch(cache.db, vec([1, 0, 0, 0]), 10, { folders: [] })).toEqual([]);
+  });
+
   it('lists indexed folders in a stable order', () => {
     for (const folder of ['Sent', 'INBOX', 'Archives.2019']) seedState(folder);
     expect(indexedFolders(cache.db)).toEqual(['Archives.2019', 'INBOX', 'Sent']);

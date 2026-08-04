@@ -2,7 +2,7 @@ import type { CacheDb } from './db';
 import type { ImapClient } from '../imap/client';
 import type { EmbeddingsConfig } from '../config/env';
 import { backfillFolder } from './backfill';
-import { indexedFolders } from './vectors';
+import { ensureVecTable, indexedFolders } from './vectors';
 import { syncFolder } from './sync';
 import { bodyFetcherFor } from '../imap/body-text';
 import { createLogger } from '../utils/logger';
@@ -72,6 +72,11 @@ export class IndexSweeper {
     let budget = this.#opts.budgetPerTick;
 
     try {
+      // Without this, a model change would mix new vectors into the old
+      // table and the watermark would then mark that mixture as current,
+      // so no later rebuild would ever fire.
+      ensureVecTable(this.#opts.db, this.#opts.cfg.model, this.#opts.cfg.dims);
+
       for (const folder of indexedFolders(this.#opts.db)) {
         if (budget <= 0 || this.#stopped) break;
         visited++;

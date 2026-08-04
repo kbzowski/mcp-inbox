@@ -18,6 +18,7 @@ export function formatFoldersMarkdown(folders: readonly FolderSummary[]): string
 
 export interface RankedEmailSummary {
   uid: number;
+  folder: string;
   subject: string | null;
   from: string | null;
   date: string | null;
@@ -34,6 +35,9 @@ export interface RankedEmailSummary {
  * nothing to judge with. The trailing note exists because the absolute
  * values mislead - the model rates even strong matches around 0.4-0.6, so a
  * naive reader would discard good hits against an intuitive threshold.
+ *
+ * The folder column is not decoration: UIDs are folder-scoped, so a result
+ * without its folder cannot be passed to any follow-up tool.
  */
 export function formatSemanticResultsMarkdown(
   rows: readonly RankedEmailSummary[],
@@ -42,15 +46,16 @@ export function formatSemanticResultsMarkdown(
   if (rows.length === 0) return '_No indexed message resembles that query._';
 
   const lines: string[] = [
-    '| # | Score | Flags | From | Subject | Date | UID |',
-    '|---|---|---|---|---|---|---|',
+    '| # | Score | Flags | From | Subject | Date | Folder | UID |',
+    '|---|---|---|---|---|---|---|---|',
   ];
   rows.forEach((r, i) => {
     const marks = (r.unseen ? 'UNSEEN ' : '') + (r.has_attachments ? '📎' : '');
     const subject = (r.subject ?? '').replace(/\|/g, '\\|');
     const from = (r.from ?? '').replace(/\|/g, '\\|');
+    const folder = r.folder.replace(/\|/g, '\\|');
     const date = r.date === null ? '' : r.date.slice(0, 16).replace('T', ' ');
-    const row = `| ${i + 1} | ${r.score.toFixed(3)} | ${marks.trim()} | ${from} | ${subject} | ${date} | ${r.uid} |`;
+    const row = `| ${i + 1} | ${r.score.toFixed(3)} | ${marks.trim()} | ${from} | ${subject} | ${date} | ${folder} | ${r.uid} |`;
     lines.push(r.unseen ? `**${row}**` : row);
   });
 

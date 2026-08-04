@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resolve } from 'node:path';
 import { openCache, type CacheHandle } from '@/cache/db';
 import { IndexSweeper } from '@/cache/indexer';
-import { ensureVecTable, upsertVecState } from '@/cache/vectors';
+import { ensureVecTable, getVecState, upsertVecState } from '@/cache/vectors';
 import type { ImapClient } from '@/imap/client';
 import { fakeConfig, FAKE_DIMS } from '../helpers/fake-embeddings';
 
@@ -117,6 +117,32 @@ describeIfVec('IndexSweeper', () => {
 
     gate.reject(new Error('imap down'));
     await expect(first).resolves.toMatchObject({ embedded: 0 });
+  });
+
+  it('drops a stale index before writing anything into it', async () => {
+    seedFolders('INBOX');
+    const { client } = failingImap();
+    const sweeper = new IndexSweeper({
+      db: cache.db,
+      imap: client,
+      cfg: { ...fakeConfig, model: 'a-different-model' },
+      intervalMs: 60_000,
+      budgetPerTick: 200,
+      now,
+    });
+
+    await sweeper.sweepOnce();
+
+    expect(getVecState(cache.db, 'INBOX')).toBeUndefined();
+  });
+
+  it('leaves a matching index alone', async () => {
+    seedFolders('INBOX');
+    const { client } = failingImap();
+
+    await build(client).sweepOnce();
+
+    expect(getVecState(cache.db, 'INBOX')).toBeDefined();
   });
 
   it('stops sweeping after stop()', async () => {

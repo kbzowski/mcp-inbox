@@ -57,13 +57,22 @@ export const semanticSearchTool = defineTool({
 
     ensureVecTable(ctx.db, cfg.model, cfg.dims);
 
-    const folders = args.folder === undefined ? indexedFolders(ctx.db) : [args.folder];
-    if (folders.length === 0) {
+    const indexed = indexedFolders(ctx.db);
+    if (indexed.length === 0) {
       throw new EmbeddingError(
         'EMBEDDING_NOT_INDEXED',
         'No folder has been indexed for semantic search yet. Run imap_index_folder first, or use imap_search_emails.',
       );
     }
+    // An unindexed folder has no vectors, so the search would return nothing
+    // and read as "no such message" rather than "you have not indexed this".
+    if (args.folder !== undefined && !indexed.includes(args.folder)) {
+      throw new EmbeddingError(
+        'EMBEDDING_NOT_INDEXED',
+        `Folder "${args.folder}" is not indexed for semantic search. Run imap_index_folder with folders=["${args.folder}"] first, search the indexed folders instead (${indexed.join(', ')}), or use imap_search_emails.`,
+      );
+    }
+    const folders = args.folder === undefined ? indexed : [args.folder];
 
     if (args.folder !== undefined) {
       await syncIfStale(ctx, args.folder, args.max_staleness_seconds);

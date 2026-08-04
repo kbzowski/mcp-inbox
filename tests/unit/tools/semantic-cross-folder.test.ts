@@ -137,6 +137,32 @@ describeIfVec('semantic search across folders', () => {
     await expect(search({ query: 'cokolwiek', limit: 3 })).resolves.toBeDefined();
   });
 
+  it('refuses a named folder that was never indexed, rather than answering empty', async () => {
+    const err = await semanticSearchTool
+      .handler(
+        semanticSearchTool.inputSchema.parse({
+          query: 'cokolwiek',
+          folder: 'Sent',
+          response_format: 'json',
+        }),
+        ctx,
+      )
+      .catch((e: unknown) => e);
+
+    expect(err).toMatchObject({ code: 'EMBEDDING_NOT_INDEXED' });
+    expect((err as { userMessage: string }).userMessage).toContain('Sent');
+  });
+
+  it('carries the folder into the markdown table', async () => {
+    const res = await semanticSearchTool.handler(
+      semanticSearchTool.inputSchema.parse({ query: 'umowa licencyjna', limit: 3 }),
+      ctx,
+    );
+    const text = res.content[0]?.text ?? '';
+    expect(text).toContain('| Folder | UID |');
+    expect(text).toContain('Archives.2019');
+  });
+
   it('refuses when nothing has been indexed at all', async () => {
     const empty = openCache(':memory:', MIGRATIONS);
     ensureVecTable(empty.db, fakeConfig.model, FAKE_DIMS);
