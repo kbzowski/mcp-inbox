@@ -1,5 +1,18 @@
 # @kbzowski/mcp-inbox
 
+## 0.5.1
+
+### Patch Changes
+
+- Rewrite the README around adding the server via `.mcp.json`, and fix
+  `.env.example`.
+
+  The env example listed `IMAP_CACHE_ENABLED`, `IMAP_CACHE_BODY_INLINE` and
+  `IMAP_CACHE_RETAIN_DAYS`. None of those are read by anything. The retention
+  setting is `IMAP_CACHE_BODY_RETAIN_DAYS` and defaults to 180 days, not 365.
+  The README pointed at that file as the full list of variables, so anyone
+  tuning the cache was copying names that did nothing.
+
 ## 0.5.0
 
 ### Minor Changes
