@@ -6,6 +6,7 @@ import {
   getFolder,
   listFolders,
   upsertEmail,
+  upsertEmails,
   getEmail,
   listEmailsByFolder,
   countEmailsInFolder,
@@ -268,23 +269,49 @@ describe('cache queries', () => {
       // SQLite caps a statement at 32766 parameters and an IN (...) list binds
       // one per UID, so an unbatched query threw "too many SQL variables" for
       // any folder this size. Real mailboxes (Gmail All Mail) reach it easily.
+      //
+      // The cap is on the UID list, not the row count, so only the rows the
+      // assertions touch are seeded. Seeding all 40k costs seconds and proves
+      // nothing extra.
       const N = 40_000;
       deleteEmailsByFolder(cache.db, 'INBOX');
+      upsertEmails(cache.db, [
+        buildEmail({ uid: 1, flags: [] }),
+        buildEmail({ uid: N, flags: [] }),
+      ]);
       const next = new Map<number, string[]>();
-      for (let uid = 1; uid <= N; uid++) {
-        upsertEmail(cache.db, buildEmail({ uid, flags: [] }));
-        next.set(uid, ['\\Seen']);
-      }
+      for (let uid = 1; uid <= N; uid++) next.set(uid, ['\\Seen']);
 
       expect(() => {
         setFlagsForUids(cache.db, 'INBOX', next);
       }).not.toThrow();
       expect(getEmail(cache.db, 'INBOX', N)?.flags).toEqual(['\\Seen']);
+      expect(getEmail(cache.db, 'INBOX', 1)?.flags).toEqual(['\\Seen']);
 
       expect(() => {
         deleteEmailsByUids(cache.db, 'INBOX', [...next.keys()]);
       }).not.toThrow();
       expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(0);
+    });
+
+    it('upsertEmails writes every row in one transaction', () => {
+      deleteEmailsByFolder(cache.db, 'INBOX');
+      upsertEmails(cache.db, [
+        buildEmail({ uid: 1, subject: 'first' }),
+        buildEmail({ uid: 2, subject: 'second' }),
+      ]);
+      expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(2);
+      expect(getEmail(cache.db, 'INBOX', 2)?.subject).toBe('second');
+
+      upsertEmails(cache.db, [buildEmail({ uid: 2, subject: 'replaced' })]);
+      expect(getEmail(cache.db, 'INBOX', 2)?.subject).toBe('replaced');
+      expect(countEmailsInFolder(cache.db, 'INBOX')).toBe(2);
+    });
+
+    it('upsertEmails no-ops on an empty list', () => {
+      expect(() => {
+        upsertEmails(cache.db, []);
+      }).not.toThrow();
     });
 
     it('setFlagsForUids ignores UIDs with no cached row', () => {

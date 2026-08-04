@@ -51,7 +51,7 @@ export function listFolders(db: CacheDb): Folder[] {
  * Insert or update an email envelope. Matched on (folder, uid) - IMAP UIDs
  * are folder-scoped, never global.
  */
-export function upsertEmail(db: CacheDb, row: EmailInsert): void {
+export function upsertEmail(db: Pick<CacheDb, 'insert'>, row: EmailInsert): void {
   db.insert(emails)
     .values(row)
     .onConflictDoUpdate({
@@ -73,12 +73,47 @@ export function upsertEmail(db: CacheDb, row: EmailInsert): void {
     .run();
 }
 
+/**
+ * Upsert many envelopes in one transaction. Outside a transaction every
+ * insert commits on its own, which on a cold sync of a large folder costs
+ * far more than the inserts themselves.
+ */
+export function upsertEmails(db: CacheDb, rows: readonly EmailInsert[]): void {
+  if (rows.length === 0) return;
+  db.transaction((tx) => {
+    for (const row of rows) upsertEmail(tx, row);
+  });
+}
+
 export function getEmail(db: CacheDb, folder: string, uid: number): Email | undefined {
   return db
     .select()
     .from(emails)
     .where(and(eq(emails.folder, folder), eq(emails.uid, uid)))
     .get();
+}
+
+/**
+ * Fetch many envelopes by UID, keyed for lookup. Batched, so a UID list
+ * over SQLite's parameter cap is safe. UIDs with no cached row are absent
+ * from the map rather than present as undefined.
+ */
+export function getEmailsByUids(
+  db: CacheDb,
+  folder: string,
+  uids: readonly number[],
+): Map<number, Email> {
+  const out = new Map<number, Email>();
+  if (uids.length === 0) return out;
+  inBatches(uids, (batch) => {
+    const rows = db
+      .select()
+      .from(emails)
+      .where(and(eq(emails.folder, folder), inArray(emails.uid, batch)))
+      .all();
+    for (const row of rows) out.set(row.uid, row);
+  });
+  return out;
 }
 
 export interface ListEmailsOptions {

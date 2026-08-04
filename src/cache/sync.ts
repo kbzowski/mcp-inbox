@@ -8,12 +8,14 @@ import {
   getFolder,
   listCachedUidsForFolder,
   setFlagsForUids,
-  upsertEmail,
+  upsertEmails,
   upsertFolder,
 } from './queries';
 import type { EmailInsert } from './schema';
 
 const log = createLogger('mcp-inbox:sync');
+
+const ENVELOPE_FLUSH_SIZE = 500;
 
 export interface SyncContext {
   db: CacheDb;
@@ -163,13 +165,22 @@ async function fetchEnvelopes(
     { uid: true },
   );
 
+  // The transaction is synchronous, so it cannot wrap the fetch loop - buffer
+  // instead and commit in chunks. One commit per envelope dominates the cost
+  // of a cold sync on a large folder.
+  const buffer: EmailInsert[] = [];
   for await (const msg of iterator) {
     const insert = messageToInsert(folderPath, msg, now);
     if (insert) {
-      upsertEmail(ctx.db, insert);
+      buffer.push(insert);
       count++;
+      if (buffer.length >= ENVELOPE_FLUSH_SIZE) {
+        upsertEmails(ctx.db, buffer);
+        buffer.length = 0;
+      }
     }
   }
+  upsertEmails(ctx.db, buffer);
 
   return count;
 }

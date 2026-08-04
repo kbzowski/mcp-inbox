@@ -1,4 +1,4 @@
-import { ImapFlow } from 'imapflow';
+import { ImapFlow, type ListResponse } from 'imapflow';
 import type { AppConfig } from '../config/env';
 import { mapImapError } from '../errors/mapper';
 import { createLogger } from '../utils/logger';
@@ -70,6 +70,7 @@ export class ImapClient {
   #flow: ImapFlow | null = null;
   #connecting: Promise<ImapFlow> | null = null;
   #closed = false;
+  #folderList: { at: number; rows: ListResponse[] } | null = null;
 
   constructor(config: AppConfig['imap']) {
     this.#config = config;
@@ -97,6 +98,24 @@ export class ImapClient {
     } finally {
       this.#connecting = null;
     }
+  }
+
+  /**
+   * The mailbox list, cached for `maxAgeMs`. Resolving \Drafts / \Sent /
+   * \Trash needs it on every send, draft and delete, and a LIST is a network
+   * round-trip whose answer almost never changes. A newly created folder
+   * shows up within the window; `imap_list_folders` bypasses this entirely,
+   * so an explicit "what folders do I have" is always current.
+   */
+  async folderList(maxAgeMs = 60_000): Promise<ListResponse[]> {
+    const cached = this.#folderList;
+    if (cached && Date.now() - cached.at < maxAgeMs) {
+      return cached.rows;
+    }
+    const flow = await this.connection();
+    const rows = await flow.list();
+    this.#folderList = { at: Date.now(), rows };
+    return rows;
   }
 
   async #openConnection(): Promise<ImapFlow> {
