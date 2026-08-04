@@ -51,7 +51,7 @@ export class LoggerContext {
     if (!this.shouldEmit(level, namespace)) return;
     // Canonical fields last so user-provided meta cannot overwrite them.
     const entry = {
-      ...(meta ?? {}),
+      ...meta,
       ts: new Date().toISOString(),
       level,
       ns: namespace,

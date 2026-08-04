@@ -1,19 +1,14 @@
 pre-commit:
   parallel: true
   jobs:
-    - name: prettier
-      glob: '*.{ts,js,mjs,json,md,yml,yaml}'
-      run: npx prettier --write {staged_files}
+    - name: oxfmt
+      glob: '*.{ts,js,mjs,json}'
+      run: npx oxfmt {staged_files}
       stage_fixed: true
 
-    - name: eslint
-      glob: 'src/**/*.ts'
-      run: npx eslint --fix {staged_files}
-      stage_fixed: true
-
-    - name: prettier-thunderbird
-      glob: 'thunderbird-plugin/src/**/*.{ts,js,mjs,json,html,css}'
-      run: npx prettier --write {staged_files}
+    - name: oxlint
+      glob: '{src,tests}/**/*.ts'
+      run: npx oxlint --fix {staged_files}
       stage_fixed: true
 
 pre-push:
@@ -23,6 +18,9 @@ pre-push:
 
     - name: typecheck-thunderbird
       run: npm run typecheck --prefix thunderbird-plugin
+
+    - name: lint
+      run: npm run lint
 
     - name: test
       run: npm run test

@@ -23,7 +23,7 @@ describeIfGreenmail('integration: basic read path against GreenMail', () => {
     const res = await listFoldersTool.handler({ response_format: 'json' }, harness.ctx);
     expect(res.isError).not.toBe(true);
     const structured = res.structuredContent as { folders: { path: string }[] };
-    const paths = structured.folders.map((f) => f.path).sort();
+    const paths = structured.folders.map((f) => f.path).toSorted();
     // GreenMail creates INBOX on first access. Other folders may or may
     // not exist depending on the server's setup mode; we assert the
     // essentials and leave the rest.

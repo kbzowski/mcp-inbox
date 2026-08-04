@@ -17,30 +17,30 @@ describe('formatFoldersMarkdown', () => {
   });
 });
 
-describe('formatEmailListMarkdown', () => {
-  function email(overrides: Partial<Email> = {}): Email {
-    return {
-      folder: 'INBOX',
-      uid: 1,
-      messageId: '<m@example.com>',
-      subject: 'Test',
-      fromAddr: 'alice@example.com',
-      toAddrs: ['bob@example.com'],
-      ccAddrs: null,
-      date: new Date('2026-04-17T08:00:00Z').getTime(),
-      flags: ['\\Seen'],
-      hasAttachments: false,
-      envelopeJson: '{}',
-      bodyText: null,
-      bodyHtml: null,
-      attachmentsJson: null,
-      modseq: 1,
-      cachedAt: 0,
-      bodyCachedAt: null,
-      ...overrides,
-    };
-  }
+function email(overrides: Partial<Email> = {}): Email {
+  return {
+    folder: 'INBOX',
+    uid: 1,
+    messageId: '<m@example.com>',
+    subject: 'Test',
+    fromAddr: 'alice@example.com',
+    toAddrs: ['bob@example.com'],
+    ccAddrs: null,
+    date: new Date('2026-04-17T08:00:00Z').getTime(),
+    flags: ['\\Seen'],
+    hasAttachments: false,
+    envelopeJson: '{}',
+    bodyText: null,
+    bodyHtml: null,
+    attachmentsJson: null,
+    modseq: 1,
+    cachedAt: 0,
+    bodyCachedAt: null,
+    ...overrides,
+  };
+}
 
+describe('formatEmailListMarkdown', () => {
   it('returns placeholder for empty list', () => {
     expect(formatEmailListMarkdown([])).toBe('_No emails match._');
   });

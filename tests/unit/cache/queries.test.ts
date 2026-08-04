@@ -230,7 +230,9 @@ describe('cache queries', () => {
     });
 
     it('listCachedUidsForFolder returns every cached UID in the folder', () => {
-      expect(listCachedUidsForFolder(cache.db, 'INBOX').sort((a, b) => a - b)).toEqual([1, 2, 3]);
+      expect(listCachedUidsForFolder(cache.db, 'INBOX').toSorted((a, b) => a - b)).toEqual([
+        1, 2, 3,
+      ]);
       expect(listCachedUidsForFolder(cache.db, 'Nonexistent')).toEqual([]);
     });
   });

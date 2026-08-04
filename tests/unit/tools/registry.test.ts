@@ -3,7 +3,7 @@ import { findTool, listToolEntries, tools } from '@/tools/registry';
 
 describe('tool registry', () => {
   it('exposes the expected tool set', () => {
-    const names = tools.map((t) => t.name).sort();
+    const names = tools.map((t) => t.name).toSorted();
     expect(names).toEqual([
       'imap_create_draft',
       'imap_delete_email',
@@ -63,8 +63,10 @@ describe('tool registry', () => {
   it('input schemas carry property descriptions through to JSON Schema', () => {
     const listEmails = listToolEntries().find((e) => e.name === 'imap_list_emails');
     const props = (
-      listEmails?.inputSchema as { properties?: Record<string, { description?: string }> }
-    ).properties;
+      listEmails?.inputSchema as
+        | { properties?: Record<string, { description?: string }> }
+        | undefined
+    )?.properties;
     expect(props?.max_staleness_seconds?.description).toMatch(/cache/i);
   });
 });

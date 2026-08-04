@@ -129,7 +129,7 @@ export const searchEmailsTool = defineTool({
       matchingUids = Array.isArray(result) ? result : [];
 
       // IMAP returns UIDs ascending; newest first = reverse, then trim.
-      topUids = [...matchingUids].reverse().slice(0, args.limit);
+      topUids = matchingUids.toReversed().slice(0, args.limit);
 
       // Auto-fill cache: any UID in the server result that we don't have
       // locally gets its envelope fetched now. Prevents the silent-drop

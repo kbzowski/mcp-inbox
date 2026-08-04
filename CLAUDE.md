@@ -10,6 +10,7 @@ MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to
 
 - **Node.js 24 LTS** - `engines.node: ">=24.0.0"`. SQLite via Node's built-in `node:sqlite` (zero native deps, zero install scripts, no ABI mismatches). `node:sqlite` still emits an ExperimentalWarning on load; it's filtered by `src/utils/suppress-sqlite-warning.ts`, which only works because the build emits `dist/index.js` and `dist/app.js` as separate files and the entry dynamically imports the app (see `scripts/build.mjs`). Don't collapse the two bundles.
 - **TypeScript strict** with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Do not disable.
+- **oxlint + oxfmt** replace ESLint and Prettier. Type-aware rules run through `oxlint-tsgolint`, so `npm run lint` needs `--type-aware` to catch anything about types. Config lives in `.oxlintrc.json` / `.oxfmtrc.json`. oxfmt handles JS/TS/JSON only - the three HTML/CSS files under `thunderbird-plugin/src/` are no longer auto-formatted.
 - **ESM only** (`"type": "module"`). Use `.js` import extensions in source (TS resolves them at compile time).
 - **Zod v4** is the single source of truth for all external inputs - env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.
 - **Drizzle ORM** (`drizzle-orm/node-sqlite`) is the cache layer; pinned to an exact `1.0.0-beta.X` version because the 1.0 line is still pre-release. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
@@ -33,7 +34,7 @@ src/
 
 ## Critical rules
 
-- **Never write to stdout.** stdio is the MCP transport. Use `console.error` or the `createLogger()` helper. ESLint enforces `no-console` with `allow: ['error']`.
+- **Never write to stdout.** stdio is the MCP transport. Use `console.error` or the `createLogger()` helper. oxlint enforces `no-console` with `allow: ['error']`.
 - **Never hand-roll MIME.** Use `nodemailer`'s message builder for drafts and sent-copy appends.
 - **Never mutate the database directly.** Use Drizzle queries - they carry types through.
 - **Never make a tool both listed and undispatched, or dispatched without a listing.** The registry handles this automatically; don't bypass it.
@@ -61,8 +62,8 @@ src/
 | `npm run dev` | Run the server via `tsx` (no build step) |
 | `npm run build` | esbuild bundle + `tsc --emitDeclarationOnly` |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint over `src/` |
-| `npm run format` | Prettier write |
+| `npm run lint` | oxlint over `src/` + `tests/`, with type-aware rules |
+| `npm run format` | oxfmt write |
 | `npm run test` | Vitest unit tests |
 | `npm run test:integration` | Vitest integration (requires GreenMail) |
 | `npm run db:generate` | drizzle-kit generate migrations from `src/cache/schema.ts` |
