@@ -106,10 +106,7 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
  */
 export function diagnoseOpenError(path: string, err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
-  const code =
-    err && typeof err === 'object' && 'code' in err
-      ? String((err as { code: unknown }).code)
-      : undefined;
+  const code = err && typeof err === 'object' && 'code' in err ? String(err.code) : undefined;
 
   let hint: string;
   if (

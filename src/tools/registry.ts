@@ -84,7 +84,7 @@ export function listToolEntries(): McpToolEntry[] {
     inputSchema: z.toJSONSchema(t.inputSchema, {
       target: 'draft-7',
       unrepresentable: 'any',
-    }) as Record<string, unknown>,
+    }),
     annotations: t.annotations,
   }));
 }

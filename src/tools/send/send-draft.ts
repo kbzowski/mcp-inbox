@@ -125,24 +125,24 @@ export const sendDraftTool = defineTool({
 });
 
 interface MailparserAddressLike {
-  address?: string;
-  value?: { address?: string }[];
+  address?: string | undefined;
+  value?: { address?: string | undefined }[];
 }
 
-function firstAddress(field: unknown): string | null {
+type MailparserAddressField = MailparserAddressLike | MailparserAddressLike[] | undefined;
+
+function firstAddress(field: MailparserAddressField): string | null {
   if (!field) return null;
-  const obj = field as MailparserAddressLike | MailparserAddressLike[];
-  const single = Array.isArray(obj) ? obj[0] : obj;
+  const single = Array.isArray(field) ? field[0] : field;
   if (!single) return null;
   if (typeof single.address === 'string') return single.address;
   const fromValue = single.value?.[0]?.address;
   return typeof fromValue === 'string' ? fromValue : null;
 }
 
-function addressList(field: unknown): string[] {
+function addressList(field: MailparserAddressField): string[] {
   if (!field) return [];
-  const obj = field as MailparserAddressLike | MailparserAddressLike[];
-  const arr = Array.isArray(obj) ? obj : [obj];
+  const arr = Array.isArray(field) ? field : [field];
   const out: string[] = [];
   for (const entry of arr) {
     if (typeof entry.address === 'string') {
