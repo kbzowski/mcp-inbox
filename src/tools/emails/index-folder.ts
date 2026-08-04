@@ -35,7 +35,7 @@ const Input = z.object({
 export const indexFolderTool = defineTool({
   name: 'imap_index_folder',
   description:
-    "Build the local semantic-search index for a folder by embedding each message's subject, sender, and body text through the configured embeddings API. Attachments are never downloaded. Opt-in per folder and safe to re-run: already-indexed messages are skipped, so a large folder can be indexed across several calls. Required before imap_semantic_search can be used on that folder.",
+    "Build the local semantic-search index for a folder by embedding each message's subject, sender, and body text through the configured embeddings API. Attachments are never downloaded. Opt-in per folder and safe to re-run: already-indexed messages are skipped, so a large folder can be indexed across several calls, and `remaining > 0` means you should call it again. Required before imap_semantic_search can be used on that folder. Changing the embedding model, or upgrading to a release whose index format changed, discards the index and re-embeds it on the next call.",
   annotations: {
     readOnlyHint: false,
     destructiveHint: false,
