@@ -114,7 +114,7 @@ export async function fetchTextBodies(
       log.warn('body part fetch failed for a part group', {
         part: partId,
         uids: groupUids.length,
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
   }
@@ -149,7 +149,7 @@ export function bodyFetcherFor(
     } catch (err) {
       log.warn('could not fetch body text', {
         folder,
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
       return { texts: new Map(), expected: 0 };
     }

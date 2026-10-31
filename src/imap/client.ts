@@ -38,7 +38,7 @@ export async function createImapConnection(config: AppConfig['imap']): Promise<I
 
   flow.on('error', (err: unknown) => {
     log.error('IMAP connection error', {
-      msg: err instanceof Error ? err.message : String(err),
+      err,
     });
   });
 
@@ -148,7 +148,7 @@ export class ImapClient {
         await flow.logout();
       } catch (err) {
         log.warn('error during IMAP logout', {
-          msg: err instanceof Error ? err.message : String(err),
+          err,
         });
       }
     }

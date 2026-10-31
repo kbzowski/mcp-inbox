@@ -141,3 +141,16 @@ describe('embeddings client', () => {
     expect(envelopeText({ subject: null, fromAddr: null })).toBe('Subject: \nFrom: ');
   });
 });
+
+describe('embeddings client error bodies', () => {
+  it('keeps an error response body out of the logged cause', async () => {
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(jsonResponse({ error: 'bad input: private email text' }, 400)),
+    );
+
+    const err = await embedTexts(['private email text'], fakeConfig).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(EmbeddingError);
+    expect(((err as EmbeddingError).cause as Error).message).toBe('HTTP 400');
+  });
+});

@@ -3,9 +3,11 @@ import { defineTool } from '../define-tool';
 import { mapImapError } from '../../errors/mapper';
 import { ImapError } from '../../errors/types';
 import { buildRawMessage } from '../../imap/mime-builder';
+import { createLogger } from '../../utils/logger';
 import { deleteEmail } from '../../cache/queries';
-import { resolveSpecialFolder } from '../emails/shared';
+import { deleteOrThrow, resolveSpecialFolder } from '../emails/shared';
 import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
+const log = createLogger('mcp-inbox:drafts');
 
 const Input = z.object({
   uid: z
@@ -76,8 +78,13 @@ export const updateDraftTool = defineTool({
     const lock = await imap.getMailboxLock(folder);
     let deletedOld = true;
     try {
-      await imap.messageDelete(String(args.uid), { uid: true });
+      await deleteOrThrow(imap, folder, String(args.uid));
     } catch (err) {
+      log.warn('new draft saved, but deleting the old one failed', {
+        folder,
+        uid: args.uid,
+        err,
+      });
       deletedOld = false;
       // Don't throw - the new draft exists, which is the important thing.
       // Surface the partial state in the response so the caller knows.

@@ -1,6 +1,9 @@
 import type { ToolContext } from '../define-tool';
 import { ToolInputError } from '../../errors/types';
 import { resolveSpecialFolder } from '../emails/shared';
+import { createLogger } from '../../utils/logger';
+
+const log = createLogger('mcp-inbox:send');
 
 /**
  * Normalize an address field (which the Zod schema accepts as
@@ -47,6 +50,7 @@ export async function sendRawAndAppendSent(
     const imap = await ctx.imap.connection();
     await imap.append(sentFolder, raw, ['\\Seen']);
   } catch (err) {
+    log.warn('sent, but saving the copy failed', { folder: sentFolder, err });
     sentSaveError = err instanceof Error ? err.message : String(err);
     sentFolder = null;
   }

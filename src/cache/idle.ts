@@ -54,7 +54,7 @@ export class IdleManager {
         // the cache still works, just without push updates for that folder.
         log.error('failed to open IDLE for folder', {
           folder,
-          msg: err instanceof Error ? err.message : String(err),
+          err,
         });
       }
     }
@@ -114,7 +114,7 @@ export class IdleManager {
         } catch (err) {
           log.warn('error closing IDLE connection', {
             folder,
-            msg: err instanceof Error ? err.message : String(err),
+            err,
           });
         }
       },
@@ -127,7 +127,7 @@ export class IdleManager {
     } catch (err) {
       log.error('exists sync failed', {
         folder,
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
   }
@@ -138,7 +138,7 @@ export class IdleManager {
     } catch (err) {
       log.error('resync failed', {
         folder,
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
   }

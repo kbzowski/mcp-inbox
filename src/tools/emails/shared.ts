@@ -1,3 +1,4 @@
+import type { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import type { ToolContext } from '../define-tool';
 import { EmbeddingError, ImapError } from '../../errors/types';
@@ -15,6 +16,21 @@ import {
 } from '../../cache/queries';
 import type { AttachmentInfo, Email } from '../../cache/schema';
 import { findSpecialFolder, type SpecialUseAttr } from '../../imap/folders';
+
+/**
+ * ImapFlow's `messageDelete` reports a server refusal by returning false, not
+ * by throwing, so a bare await reads a failed delete as a success. The caller
+ * must hold the mailbox lock.
+ */
+export async function deleteOrThrow(
+  imap: Pick<ImapFlow, 'messageDelete'>,
+  folder: string,
+  uids: string | number[],
+): Promise<void> {
+  if (!(await imap.messageDelete(uids, { uid: true }))) {
+    throw new ImapError('IMAP_UNKNOWN', `Server did not delete the message(s) from ${folder}.`);
+  }
+}
 
 /**
  * Sync a folder if its cache is older than `maxStalenessSec`, which falls

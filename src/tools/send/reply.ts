@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { defineTool, type ToolContext } from '../define-tool';
 import { buildRawMessage } from '../../imap/mime-builder';
+import { createLogger } from '../../utils/logger';
 import { ensureEnvelopeCached } from '../emails/shared';
 import { applyFlags } from '../emails/flags';
 import { flattenCompose, sendRawAndAppendSent } from './shared';
 import { AddressList, AttachmentList, toMessageAttachments } from '../compose-schema';
+const log = createLogger('mcp-inbox:send');
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder of the original message.'),
@@ -108,6 +110,11 @@ export const replyTool = defineTool({
           markAnsweredError = `Server did not apply \\Answered to UID ${String(args.uid)} in ${args.folder}.`;
         }
       } catch (err) {
+        log.warn('replied, but setting \\Answered failed', {
+          folder: args.folder,
+          uid: args.uid,
+          err,
+        });
         markAnsweredError = err instanceof Error ? err.message : String(err);
       }
     }

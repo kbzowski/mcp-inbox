@@ -23,12 +23,77 @@ const LEVEL_WEIGHT: Record<Level, number> = {
   error: 40,
 };
 
+// `msg` is the logger's own field and would overwrite anything passed under that
+// name. Failures go in as `{ err }`, however deep, and get expanded on the way out.
+type Meta = Record<string, unknown> & { msg?: never };
+
 export interface Logger {
-  debug: (msg: string, meta?: Record<string, unknown>) => void;
-  info: (msg: string, meta?: Record<string, unknown>) => void;
-  warn: (msg: string, meta?: Record<string, unknown>) => void;
-  error: (msg: string, meta?: Record<string, unknown>) => void;
+  debug: (msg: string, meta?: Meta) => void;
+  info: (msg: string, meta?: Meta) => void;
+  warn: (msg: string, meta?: Meta) => void;
+  error: (msg: string, meta?: Meta) => void;
   child: (subNamespace: string) => Logger;
+}
+
+// What ImapFlow, nodemailer and Node attach to their errors. An allowlist because
+// the rest (`response`, `input`) can hold raw server replies or message content.
+const ERROR_FIELDS = [
+  'name',
+  'message',
+  'code',
+  'errno',
+  'syscall',
+  'address',
+  'port',
+  'responseStatus',
+  'responseText',
+  'serverResponseCode',
+  'executedCommand',
+  'authenticationFailed',
+  'throttleReset',
+  'command',
+  'responseCode',
+] as const;
+
+const MAX_FIELD_LENGTH = 1000;
+const MAX_STACK_LENGTH = 4000;
+const EMAIL_ADDRESS = /[^\s<>"'@]+@[^\s<>"'@]+/g;
+
+// nodemailer appends the raw SMTP reply, recipient included, to `message` itself.
+function clean(text: string, maxLength = MAX_FIELD_LENGTH): string {
+  return text.slice(0, maxLength).replace(EMAIL_ADDRESS, '[address]');
+}
+
+function serializeError(err: object): Record<string, unknown> {
+  const source = err as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const field of ERROR_FIELDS) {
+    const value = source[field];
+    if (typeof value === 'string') out[field] = clean(value);
+    else if (typeof value === 'number' || typeof value === 'boolean') out[field] = value;
+  }
+  // Node's dual-stack connect failure: empty message, the addresses are only in here.
+  if (Array.isArray(source['errors'])) {
+    out['errors'] = source['errors'].filter((e) => e instanceof Error);
+  }
+  if (typeof source['stack'] === 'string') out['stack'] = clean(source['stack'], MAX_STACK_LENGTH);
+  // JSON.stringify runs the replacer on this too, which walks the whole cause chain.
+  if (source['cause'] !== undefined) out['cause'] = source['cause'];
+  return out;
+}
+
+function createReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet();
+  return (key, value) => {
+    if (typeof value === 'bigint') return value.toString();
+    // Drivers also throw plain objects and strings, so the key counts as well as the type.
+    if (!(value instanceof Error) && key !== 'err' && key !== 'cause') return value;
+    if (typeof value === 'string') return clean(value);
+    if (typeof value !== 'object' || value === null) return value;
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
+    return serializeError(value);
+  };
 }
 
 export class LoggerContext {
@@ -47,17 +112,17 @@ export class LoggerContext {
     return this.#enabledNamespaces.some((re) => re.test(namespace));
   }
 
-  emit(level: Level, namespace: string, msg: string, meta?: Record<string, unknown>): void {
+  emit(level: Level, namespace: string, msg: string, meta?: Meta): void {
     if (!this.shouldEmit(level, namespace)) return;
-    // Canonical fields last so user-provided meta cannot overwrite them.
-    const entry = {
-      ...meta,
-      ts: new Date().toISOString(),
-      level,
-      ns: namespace,
-      msg,
-    };
-    process.stderr.write(JSON.stringify(entry) + '\n');
+    const base = { ts: new Date().toISOString(), level, ns: namespace, msg };
+    let line: string;
+    try {
+      // First so they lead the line ahead of a long stack, last so meta cannot overwrite them.
+      line = JSON.stringify({ ...base, ...meta, ...base }, createReplacer());
+    } catch (err) {
+      line = JSON.stringify({ ...base, logFailure: String(err) });
+    }
+    process.stderr.write(line + '\n');
   }
 
   logger(namespace: string): Logger {

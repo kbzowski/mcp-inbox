@@ -63,7 +63,7 @@ export function startHttpServer(cfg: HttpConfig, makeServer: () => Server): Prom
           await transport.handleRequest(req, res, body);
         } catch (err) {
           log.error('http request failed', {
-            msg: err instanceof Error ? err.message : String(err),
+            err,
           });
           if (!res.headersSent) reply(500, 'Internal error');
         }

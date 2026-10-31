@@ -107,7 +107,7 @@ try {
       await server.close();
     } catch (err) {
       rootLogger.error('error closing MCP server', {
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
     sweeper?.stop();
@@ -115,14 +115,14 @@ try {
       if (idleManager) await idleManager.stop();
     } catch (err) {
       rootLogger.error('error stopping IDLE manager', {
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
     try {
       await imapClient.close();
     } catch (err) {
       rootLogger.error('error closing IMAP client', {
-        msg: err instanceof Error ? err.message : String(err),
+        err,
       });
     }
     smtpClient.close();
@@ -132,8 +132,7 @@ try {
 
   const onSignal = (signal: string): void => {
     shutdown(signal).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`shutdown failed: ${msg}\n`);
+      rootLogger.error('shutdown failed', { err });
       process.exit(1);
     });
   };

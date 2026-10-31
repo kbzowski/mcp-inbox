@@ -36,6 +36,7 @@ src/
 ## Critical rules
 
 - **Never write to stdout.** stdio is the MCP transport. Use `console.error` or the `createLogger()` helper. oxlint enforces `no-console` with `allow: ['error']`.
+- **Log failures as `{ err }`,** with the raw error object, never its `.message`. The logger expands the stack, cause chain and driver fields; `src/utils/logger.ts` holds the allowlist of driver fields. Never log tool arguments beyond folder/UID: they carry bodies and addresses.
 - **Never hand-roll MIME.** Use `nodemailer`'s message builder for drafts and sent-copy appends.
 - **Never mutate the database directly.** Use Drizzle queries - they carry types through.
 - **Never make a tool both listed and undispatched, or dispatched without a listing.** The registry handles this automatically; don't bypass it.

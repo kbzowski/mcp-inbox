@@ -119,9 +119,10 @@ async function postWithRetry(batch: string[], cfg: EmbeddingsConfig): Promise<Re
       );
     }
 
-    // Never surface the response body to the model - an echoing endpoint
-    // could reflect the API key back into the conversation.
-    lastError = new Error(`HTTP ${response.status}: ${(await safeText(response)).slice(0, 200)}`);
+    // Status only: an echoing endpoint could reflect the API key or the email
+    // text being embedded, and this error reaches the logs as a cause.
+    await response.body?.cancel();
+    lastError = new Error(`HTTP ${response.status}`);
 
     if (!isRetryable(response.status) || attempt === MAX_ATTEMPTS) break;
 
@@ -150,14 +151,6 @@ function retryAfterMs(response: Response): number | undefined {
 
 function backoffMs(attempt: number): number {
   return BASE_BACKOFF_MS * 2 ** (attempt - 1) + Math.random() * 250;
-}
-
-async function safeText(response: Response): Promise<string> {
-  try {
-    return await response.text();
-  } catch {
-    return '';
-  }
 }
 
 function sleep(ms: number): Promise<void> {

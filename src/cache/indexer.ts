@@ -98,12 +98,12 @@ export class IndexSweeper {
         } catch (err) {
           log.warn('sweep failed for folder', {
             folder,
-            msg: err instanceof Error ? err.message : String(err),
+            err,
           });
         }
       }
     } catch (err) {
-      log.warn('sweep aborted', { msg: err instanceof Error ? err.message : String(err) });
+      log.warn('sweep aborted', { err });
     } finally {
       this.#running = false;
     }

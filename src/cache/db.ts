@@ -99,7 +99,7 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
         sqlite.close();
       } catch (err) {
         log.warn('error closing cache db', {
-          msg: err instanceof Error ? err.message : String(err),
+          err,
         });
       }
     },
@@ -118,7 +118,7 @@ function loadVectorExtension(sqlite: DatabaseSync): boolean {
     return true;
   } catch (err) {
     log.warn('sqlite-vec unavailable - semantic search tools will be disabled', {
-      msg: err instanceof Error ? err.message : String(err),
+      err,
     });
     return false;
   } finally {

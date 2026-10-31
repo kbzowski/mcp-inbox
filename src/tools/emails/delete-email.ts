@@ -3,7 +3,7 @@ import { defineTool } from '../define-tool';
 import { mapImapError } from '../../errors/mapper';
 import { ImapError } from '../../errors/types';
 import { deleteEmail } from '../../cache/queries';
-import { resolveSpecialFolder } from './shared';
+import { deleteOrThrow, resolveSpecialFolder } from './shared';
 
 const Input = z.object({
   folder: z.string().min(1).describe('Folder containing the message to delete.'),
@@ -33,7 +33,7 @@ export const deleteEmailTool = defineTool({
     if (args.hard_delete) {
       const lock = await imap.getMailboxLock(args.folder);
       try {
-        await imap.messageDelete(String(args.uid), { uid: true });
+        await deleteOrThrow(imap, args.folder, String(args.uid));
       } catch (err) {
         throw mapImapError(err);
       } finally {

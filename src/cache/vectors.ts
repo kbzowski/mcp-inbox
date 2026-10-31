@@ -157,7 +157,7 @@ export function deleteVectorsByFolder(db: CacheDb, folder: string): void {
       .where(eq(vecIndexState.folder, folder))
       .run();
   } catch (err) {
-    log.warn('could not drop vectors for folder', { folder, msg: messageOf(err) });
+    log.warn('could not drop vectors for folder', { folder, err });
   }
 }
 
@@ -173,7 +173,7 @@ export function deleteVectorsByUids(db: CacheDb, folder: string, uids: readonly 
     log.warn('could not drop vectors for uids', {
       folder,
       count: uids.length,
-      msg: messageOf(err),
+      err,
     });
   }
 }
@@ -252,7 +252,7 @@ export function pruneOrphanedVectors(db: CacheDb, folder: string): number {
     log.info('pruned orphaned vectors', { folder, count: orphans.length });
     return orphans.length;
   } catch (err) {
-    log.warn('could not prune orphaned vectors', { folder, msg: messageOf(err) });
+    log.warn('could not prune orphaned vectors', { folder, err });
     return 0;
   }
 }
@@ -266,7 +266,3 @@ export function countVectors(db: CacheDb, folder: string): number {
 }
 
 export { ENVELOPE_PART };
-
-function messageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}

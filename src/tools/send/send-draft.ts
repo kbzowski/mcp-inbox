@@ -3,9 +3,11 @@ import { defineTool } from '../define-tool';
 import { ImapError, ToolInputError } from '../../errors/types';
 import { mapImapError } from '../../errors/mapper';
 import { deleteEmail } from '../../cache/queries';
-import { resolveSpecialFolder } from '../emails/shared';
+import { deleteOrThrow, resolveSpecialFolder } from '../emails/shared';
 import { sendRawAndAppendSent } from './shared';
+import { createLogger } from '../../utils/logger';
 import { simpleParser } from 'mailparser';
+const log = createLogger('mcp-inbox:send');
 
 const Input = z.object({
   uid: z.number().int().positive().describe('UID of the draft to send.'),
@@ -87,9 +89,10 @@ export const sendDraftTool = defineTool({
     const imap2 = await ctx.imap.connection();
     const lock2 = await imap2.getMailboxLock(folder);
     try {
-      await imap2.messageDelete(String(args.uid), { uid: true });
+      await deleteOrThrow(imap2, folder, String(args.uid));
       deleteEmail(ctx.db, folder, args.uid);
     } catch (err) {
+      log.warn('sent, but deleting the draft failed', { folder, uid: args.uid, err });
       draftDeleted = false;
       draftDeleteError = err instanceof Error ? err.message : String(err);
     } finally {

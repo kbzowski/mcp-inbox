@@ -51,33 +51,36 @@ export function createMcpServer(ctx: ToolContext): Server {
       return errorResult(`Invalid arguments for ${toolName}: ${issues}`);
     }
 
+    const started = Date.now();
     try {
       return (await tool.handler(parsed.data, ctx)) as CallToolResult;
     } catch (err) {
+      const meta = {
+        tool: toolName,
+        durationMs: Date.now() - started,
+        ...failureContext(parsed.data),
+        err,
+      };
       if (isMcpInboxError(err)) {
-        log.warn('tool returned mcp-inbox error', {
-          tool: toolName,
-          code: err.code,
-          msg: err.userMessage,
-        });
+        log.warn('tool returned mcp-inbox error', meta);
         return errorResult(err.userMessage);
       }
-      log.error('tool handler threw', {
-        tool: toolName,
-        msg: err instanceof Error ? err.message : String(err),
-      });
+      log.error('tool handler threw', meta);
       return errorResult(`Internal error in ${toolName}. Check server logs for details.`);
     }
   });
 
   server.onerror = (err: unknown) => {
-    const meta = isMcpInboxError(err)
-      ? { code: err.code, msg: err.userMessage }
-      : { msg: err instanceof Error ? err.message : String(err) };
-    log.error('mcp server error', meta);
+    log.error('mcp server error', { err });
   };
 
   return server;
+}
+
+// Only which messages were targeted: other arguments carry bodies, addresses and queries.
+function failureContext(args: unknown): Record<string, unknown> {
+  const { folder, uid, uids, destination } = args as Record<string, unknown>;
+  return { folder, uid, uidCount: Array.isArray(uids) ? uids.length : undefined, destination };
 }
 
 function errorResult(text: string): CallToolResult {
