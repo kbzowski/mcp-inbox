@@ -1,5 +1,34 @@
 # @kbzowski/mcp-inbox
 
+## 0.6.0
+
+### Minor Changes
+
+- 9e35435: Semantic search now reads the message text, not just the subject line.
+  
+  `imap_index_folder` embeds each message's body alongside its subject and sender, splitting long messages into overlapping chunks and ranking a message by its single best-matching passage. A mail titled "Re: 4417" is now findable by what it actually says. Quoted reply history is stripped first, so every message in a thread no longer embeds to nearly the same vector.
+  
+  Only the text part of each message is fetched, never attachments, which on a real mailbox is around 80x less data than pulling the full messages.
+  
+  **This release resets the semantic index.** The stored format changed, so the first `imap_index_folder` call after upgrading drops what is there and re-embeds the folder. Nothing else in the cache is affected, and folders you never indexed are untouched.
+- 9e35435: Semantic search now spans folders and keeps itself up to date.
+  
+  `imap_semantic_search` takes an optional `folder`. Leave it out and every indexed folder is searched at once, with each result saying which folder it came from - "find that mail anywhere" instead of having to guess where it lives.
+  
+  `imap_index_folder` takes a list of folders that share one `max_messages` budget, so a whole mailbox can be indexed a few hundred messages at a time.
+  
+  New mail no longer waits for you to search the right folder. A background pass tops up every indexed folder on an interval (`IMAP_EMBEDDINGS_SWEEP_MINUTES`, 15 by default, `0` disables). Searching stopped indexing as a side effect, so its latency is predictable now.
+  
+  Two argument changes come with this: `imap_index_folder` takes `folders` (an array) where it took `folder`, and `imap_semantic_search` reports the folders it covered as `folders` instead of a single `folder`. Its results carry a `folder` each, in both JSON and the markdown table - a UID is only meaningful next to the folder it belongs to.
+- 9e35435: Add optional semantic search over your mail.
+  
+  Two new tools: `imap_index_folder` builds a local vector index for a folder, and `imap_semantic_search` finds messages by meaning rather than by keyword, so "the invoice from the hosting provider" matches a message titled "Payment receipt #4417".
+  
+  The feature is off unless you set `IMAP_EMBEDDINGS_BASE_URL`, and indexing is opt-in per folder, because it sends message subjects and senders to that endpoint. Any OpenAI-compatible `/v1/embeddings` API works, including one running locally. Vectors are stored in the existing SQLite cache via sqlite-vec and survive restarts; they also outlive the message bodies that body retention prunes.
+  
+  sqlite-vec ships no binary for windows-arm64 or Alpine/musl. There the two new tools return an error pointing at `imap_search_emails` and everything else works as before.
+- be705ee: Optional streamable HTTP transport. Set `MCP_HTTP_PORT` and `MCP_AUTH_TOKEN` to serve POST `/mcp` (stateless, bearer-token protected) so several clients can share one server; stdio stays the default. `compose.yaml` now runs it as a long-lived service.
+
 ## 0.5.1
 
 ### Patch Changes
