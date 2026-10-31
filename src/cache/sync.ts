@@ -16,6 +16,7 @@ import type { EmailInsert } from './schema';
 const log = createLogger('mcp-inbox:sync');
 
 const ENVELOPE_FLUSH_SIZE = 500;
+const FETCH_UID_BATCH = 500;
 
 export interface SyncContext {
   db: CacheDb;
@@ -159,24 +160,27 @@ async function fetchEnvelopes(
   const now = Date.now();
   let count = 0;
 
-  const iterator = ctx.imap.fetch(
-    uids,
-    { envelope: true, flags: true, internalDate: true, bodyStructure: true },
-    { uid: true },
-  );
-
   // The transaction is synchronous, so it cannot wrap the fetch loop - buffer
   // instead and commit in chunks. One commit per envelope dominates the cost
   // of a cold sync on a large folder.
   const buffer: EmailInsert[] = [];
-  for await (const msg of iterator) {
-    const insert = messageToInsert(folderPath, msg, now);
-    if (insert) {
-      buffer.push(insert);
-      count++;
-      if (buffer.length >= ENVELOPE_FLUSH_SIZE) {
-        upsertEmails(ctx.db, buffer);
-        buffer.length = 0;
+  // A UID set with gaps is sent as a comma list; the server rejects the whole
+  // command ("Too long argument") past its line limit, so fetch in batches.
+  for (let i = 0; i < uids.length; i += FETCH_UID_BATCH) {
+    const iterator = ctx.imap.fetch(
+      uids.slice(i, i + FETCH_UID_BATCH),
+      { envelope: true, flags: true, internalDate: true, bodyStructure: true },
+      { uid: true },
+    );
+    for await (const msg of iterator) {
+      const insert = messageToInsert(folderPath, msg, now);
+      if (insert) {
+        buffer.push(insert);
+        count++;
+        if (buffer.length >= ENVELOPE_FLUSH_SIZE) {
+          upsertEmails(ctx.db, buffer);
+          buffer.length = 0;
+        }
       }
     }
   }
