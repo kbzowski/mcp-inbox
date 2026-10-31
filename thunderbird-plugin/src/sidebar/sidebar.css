@@ -5,10 +5,7 @@
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
   background: var(--in-content-page-background, #fff);
   color: var(--in-content-text-color, #0c0c0d);
