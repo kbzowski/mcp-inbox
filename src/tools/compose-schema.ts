@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { MessageAttachment } from '../imap/mime-builder';
 
-export const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]);
+export const AddressList = z.union([z.string().min(1), z.array(z.string().min(1)).min(1).max(500)]);
 
 export const AttachmentInput = z.object({
   filename: z.string().min(1).describe('Name the recipient sees, e.g. "invoice.pdf".'),
@@ -17,7 +17,7 @@ export const AttachmentInput = z.object({
     .describe('MIME type. Omit to let the type be derived from `filename`.'),
 });
 
-export const AttachmentList = z.array(AttachmentInput).optional();
+export const AttachmentList = z.array(AttachmentInput).max(20).optional();
 
 export function toMessageAttachments(
   input: z.infer<typeof AttachmentInput>[] | undefined,
