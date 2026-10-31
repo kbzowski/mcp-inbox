@@ -15,6 +15,10 @@ export interface ToolContext {
   imap: ImapClient;
   smtp: SmtpClient;
   cacheConfig: AppConfig['cache'];
+  /** Null when IMAP_EMBEDDINGS_BASE_URL is unset - semantic tools refuse to run. */
+  embeddings: AppConfig['embeddings'];
+  /** False when sqlite-vec has no build for this platform. */
+  vectorsAvailable: boolean;
   /** Default sender + smtp config for tools that compose messages. */
   defaults: {
     fromAddress: string;

@@ -4,6 +4,8 @@ import { listFoldersTool } from './folders/list-folders';
 import { listEmailsTool } from './emails/list-emails';
 import { getEmailTool } from './emails/get-email';
 import { searchEmailsTool } from './emails/search-emails';
+import { semanticSearchTool } from './emails/semantic-search';
+import { indexFolderTool } from './emails/index-folder';
 import { markReadTool, markUnreadTool } from './emails/mark-read';
 import { markReadMultipleTool, markUnreadMultipleTool } from './emails/mark-read-multiple';
 import { setFlagsTool } from './emails/set-flags';
@@ -35,6 +37,9 @@ export const tools: readonly ToolDefinition[] = [
   searchEmailsTool,
   listDraftsTool,
   getDraftTool,
+  // Semantic search (opt-in per folder, needs IMAP_EMBEDDINGS_BASE_URL)
+  indexFolderTool,
+  semanticSearchTool,
   // Write (flag + move + delete)
   markReadTool,
   markUnreadTool,

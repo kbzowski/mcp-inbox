@@ -26,6 +26,12 @@ export type ErrorCode =
   | 'CACHE_SCHEMA_MISMATCH'
   | 'ATTACHMENT_TOO_LARGE'
   | 'ATTACHMENT_NOT_FOUND'
+  | 'EMBEDDING_DISABLED'
+  | 'EMBEDDING_INDEX_UNAVAILABLE'
+  | 'EMBEDDING_NOT_INDEXED'
+  | 'EMBEDDING_AUTH_FAILED'
+  | 'EMBEDDING_UNREACHABLE'
+  | 'EMBEDDING_DIM_MISMATCH'
   | 'TOOL_INVALID_INPUT'
   | 'INTERNAL';
 
@@ -49,6 +55,8 @@ export class ImapError extends McpInboxError {}
 export class SmtpError extends McpInboxError {}
 
 export class CacheError extends McpInboxError {}
+
+export class EmbeddingError extends McpInboxError {}
 
 export class ToolInputError extends McpInboxError {
   constructor(userMessage: string, cause?: unknown) {

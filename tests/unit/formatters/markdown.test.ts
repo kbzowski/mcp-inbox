@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { formatFoldersMarkdown, formatEmailListMarkdown } from '../../../src/formatters/markdown';
+import {
+  formatFoldersMarkdown,
+  formatEmailListMarkdown,
+  formatSemanticResultsMarkdown,
+  type RankedEmailSummary,
+} from '../../../src/formatters/markdown';
 import type { Email } from '../../../src/cache/schema';
 
 describe('formatFoldersMarkdown', () => {
@@ -72,5 +77,76 @@ describe('formatEmailListMarkdown', () => {
     ]);
     expect(out).toContain('Question \\| request');
     expect(out).toContain('x\\|y@example.com');
+  });
+});
+
+function ranked(overrides: Partial<RankedEmailSummary> = {}): RankedEmailSummary {
+  return {
+    uid: 42,
+    folder: 'INBOX',
+    subject: 'Payment receipt 4417',
+    from: 'billing@hosting.example',
+    date: '2026-04-17T08:00:00.000Z',
+    unseen: false,
+    has_attachments: false,
+    score: 0.5123,
+    ...overrides,
+  };
+}
+
+describe('formatSemanticResultsMarkdown', () => {
+  it('says so when nothing was indexed close enough', () => {
+    expect(formatSemanticResultsMarkdown([], 0)).toBe('_No indexed message resembles that query._');
+  });
+
+  it('renders the score so the caller can weigh each hit', () => {
+    const out = formatSemanticResultsMarkdown([ranked()], 0);
+    expect(out).toContain('| # | Score | Flags | From | Subject | Date | Folder | UID |');
+    expect(out).toContain('| 1 | 0.512 |');
+    expect(out).toContain('Payment receipt 4417');
+  });
+
+  it('shows the folder, without which a folder-scoped uid is unusable', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ uid: 7, folder: 'Archives.2019' })], 0);
+    expect(out).toContain('| Archives.2019 | 7 |');
+  });
+
+  it('escapes a pipe in the folder name', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ folder: 'a|b' })], 0);
+    expect(out).toContain(String.raw`a\|b`);
+  });
+
+  it('warns that the absolute value is not a threshold', () => {
+    const out = formatSemanticResultsMarkdown([ranked()], 0);
+    expect(out).toMatch(/judge each result on its own merits/);
+  });
+
+  it('preserves rank order rather than re-sorting', () => {
+    const out = formatSemanticResultsMarkdown(
+      [ranked({ uid: 1, score: 0.9 }), ranked({ uid: 2, score: 0.2 })],
+      0,
+    );
+    expect(out.indexOf('| 1 | 0.900 |')).toBeLessThan(out.indexOf('| 2 | 0.200 |'));
+  });
+
+  it('bolds unseen rows and marks attachments', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ unseen: true, has_attachments: true })], 0);
+    expect(out).toMatch(/\*\*\| 1 \|.*UNSEEN 📎/);
+  });
+
+  it('escapes pipes so a subject cannot break the table', () => {
+    const out = formatSemanticResultsMarkdown([ranked({ subject: 'a | b' })], 0);
+    expect(out).toContain(String.raw`a \| b`);
+  });
+
+  it('mentions pending messages only when some remain', () => {
+    expect(formatSemanticResultsMarkdown([ranked()], 7)).toContain('7 message(s)');
+    expect(formatSemanticResultsMarkdown([ranked()], 0)).not.toContain('not yet indexed');
+  });
+
+  it('tolerates a null date and null subject', () => {
+    expect(() =>
+      formatSemanticResultsMarkdown([ranked({ date: null, subject: null, from: null })], 0),
+    ).not.toThrow();
   });
 });

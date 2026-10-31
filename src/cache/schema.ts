@@ -86,8 +86,28 @@ export const emails = sqliteTable(
   ],
 );
 
+/**
+ * Which folders are opted in to semantic search, and how much of each is
+ * embedded. IMAP UIDs increase monotonically within a UIDVALIDITY, so the
+ * indexed set is always the contiguous range [fromUid, toUid] - which means
+ * "what still needs embedding" is derivable from these two integers plus a
+ * query over `emails`, without ever reading back from the vec0 table.
+ *
+ * `model`/`dims` are recorded per folder because the vec0 table bakes its
+ * dimensionality in at creation: a change to either forces a rebuild.
+ */
+export const vecIndexState = sqliteTable('vec_index_state', {
+  folder: text('folder').primaryKey(),
+  model: text('model').notNull(),
+  dims: integer('dims').notNull(),
+  fromUid: integer('from_uid').notNull(),
+  toUid: integer('to_uid').notNull(),
+  indexedAt: integer('indexed_at').notNull(),
+});
+
 // Inferred types - consumed by queries.ts and downstream tool handlers.
 export type Folder = typeof folders.$inferSelect;
 export type FolderInsert = typeof folders.$inferInsert;
 export type Email = typeof emails.$inferSelect;
 export type EmailInsert = typeof emails.$inferInsert;
+export type VecIndexState = typeof vecIndexState.$inferSelect;

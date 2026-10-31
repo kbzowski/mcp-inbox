@@ -16,6 +16,64 @@ export function formatFoldersMarkdown(folders: readonly FolderSummary[]): string
   return lines.join('\n');
 }
 
+export interface RankedEmailSummary {
+  uid: number;
+  folder: string;
+  subject: string | null;
+  from: string | null;
+  date: string | null;
+  unseen: boolean;
+  has_attachments: boolean;
+  score: number;
+}
+
+/**
+ * Semantic-search results, scores included.
+ *
+ * The score column is the point: this tool never filters, so the caller has
+ * to judge relevance itself, and a ranked list without scores gives it
+ * nothing to judge with. The trailing note exists because the absolute
+ * values mislead - the model rates even strong matches around 0.4-0.6, so a
+ * naive reader would discard good hits against an intuitive threshold.
+ *
+ * The folder column is not decoration: UIDs are folder-scoped, so a result
+ * without its folder cannot be passed to any follow-up tool.
+ */
+export function formatSemanticResultsMarkdown(
+  rows: readonly RankedEmailSummary[],
+  pendingIndex: number,
+): string {
+  if (rows.length === 0) return '_No indexed message resembles that query._';
+
+  const lines: string[] = [
+    '| # | Score | Flags | From | Subject | Date | Folder | UID |',
+    '|---|---|---|---|---|---|---|---|',
+  ];
+  rows.forEach((r, i) => {
+    const marks = (r.unseen ? 'UNSEEN ' : '') + (r.has_attachments ? '📎' : '');
+    const subject = (r.subject ?? '').replace(/\|/g, '\\|');
+    const from = (r.from ?? '').replace(/\|/g, '\\|');
+    const folder = r.folder.replace(/\|/g, '\\|');
+    const date = r.date === null ? '' : r.date.slice(0, 16).replace('T', ' ');
+    const row = `| ${i + 1} | ${r.score.toFixed(3)} | ${marks.trim()} | ${from} | ${subject} | ${date} | ${folder} | ${r.uid} |`;
+    lines.push(r.unseen ? `**${row}**` : row);
+  });
+
+  lines.push(
+    '',
+    '_Scores are relative cosine similarity, not probabilities: this model rates even strong matches around 0.4-0.6, so judge each result on its own merits rather than against a fixed cutoff. A large gap between consecutive scores says more than any single value._',
+  );
+
+  if (pendingIndex > 0) {
+    lines.push(
+      '',
+      `_${pendingIndex} message(s) in this folder are not yet indexed; re-run \`imap_index_folder\` to include them._`,
+    );
+  }
+
+  return lines.join('\n');
+}
+
 /**
  * Compact one-email-per-row summary. Unseen messages are bolded so the
  * agent can scan inbox status at a glance.
