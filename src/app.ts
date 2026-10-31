@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Server as HttpServer } from 'node:http';
+import { startHttpServer } from './http';
 import { loadConfig, type AppConfig } from './config/env';
 import { DEFAULT_MIGRATIONS_FOLDER, openCache } from './cache/db';
 import { pruneBodiesBefore } from './cache/queries';
@@ -90,14 +92,17 @@ try {
       : null;
   sweeper?.start();
 
+  // HTTP: one stateless Server per request, all sharing ctx (one IMAP
+  // connection, one cache). Stdio: a single long-lived Server.
   const server = createMcpServer(ctx);
-  const transport = new StdioServerTransport();
+  let httpServer: HttpServer | null = null;
 
   let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     rootLogger.info('shutting down', { signal });
+    httpServer?.close();
     try {
       await server.close();
     } catch (err) {
@@ -136,7 +141,11 @@ try {
   process.on('SIGINT', () => onSignal('SIGINT'));
   process.on('SIGTERM', () => onSignal('SIGTERM'));
 
-  await server.connect(transport);
+  if (config.http) {
+    httpServer = await startHttpServer(config.http, () => createMcpServer(ctx));
+  } else {
+    await server.connect(new StdioServerTransport());
+  }
   rootLogger.info('mcp-inbox ready');
 } catch (err) {
   // Print the top-level message + stack, then walk and print the `cause`

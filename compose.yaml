@@ -1,0 +1,19 @@
+# Long-running streamable HTTP server: http://localhost:3000/mcp
+# Clients authenticate with "Authorization: Bearer $MCP_AUTH_TOKEN".
+services:
+  mcp-inbox:
+    build: .
+    image: mcp-inbox
+    restart: unless-stopped
+    env_file: .env # needs MCP_AUTH_TOKEN (16+ chars)
+    environment:
+      IMAP_CACHE_DIR: /data
+      MCP_HTTP_PORT: "3000"
+      MCP_HTTP_HOST: 0.0.0.0 # inside the container only; the port below is host-local
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - mcp-inbox-cache:/data
+
+volumes:
+  mcp-inbox-cache:

@@ -53,8 +53,18 @@ const EnvSchema = z
     IMAP_IDLE_ENABLED: BooleanString.default(true),
     IMAP_IDLE_FOLDERS: CsvList.default(['INBOX']),
 
+    // Transport. Unset MCP_HTTP_PORT = stdio. Set = streamable HTTP, which
+    // exposes the mailbox over the network, so a token is mandatory.
+    MCP_HTTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
+    MCP_HTTP_HOST: z.string().min(1).default('127.0.0.1'),
+    MCP_AUTH_TOKEN: z.string().min(16, 'MCP_AUTH_TOKEN must be at least 16 characters').optional(),
+
     // Debug
     DEBUG: z.string().optional(),
+  })
+  .refine((raw) => raw.MCP_HTTP_PORT === undefined || raw.MCP_AUTH_TOKEN !== undefined, {
+    path: ['MCP_AUTH_TOKEN'],
+    message: 'MCP_AUTH_TOKEN is required when MCP_HTTP_PORT is set',
   })
   .transform((raw) => ({
     imap: {
@@ -97,6 +107,10 @@ const EnvSchema = z
       enabled: raw.IMAP_IDLE_ENABLED,
       folders: raw.IMAP_IDLE_FOLDERS,
     },
+    http:
+      raw.MCP_HTTP_PORT === undefined
+        ? null
+        : { port: raw.MCP_HTTP_PORT, host: raw.MCP_HTTP_HOST, token: raw.MCP_AUTH_TOKEN! },
     debug: raw.DEBUG ?? '',
   }));
 
