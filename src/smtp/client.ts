@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { createTransport } from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import type { AppConfig } from '../config/env';
 import { mapSmtpError } from '../errors/mapper';
@@ -35,7 +35,7 @@ export class SmtpClient {
       secure: this.#config.secure,
     });
 
-    this.#transporter = nodemailer.createTransport({
+    this.#transporter = createTransport({
       host: this.#config.host,
       port: this.#config.port,
       secure: this.#config.secure,

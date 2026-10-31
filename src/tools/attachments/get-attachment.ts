@@ -205,7 +205,7 @@ interface MailparserAttachmentLike {
   filename?: string | undefined;
   contentType?: string | undefined;
   content: Buffer;
-  partId?: string | undefined;
+  partId?: string | null | undefined;
 }
 
 /**
