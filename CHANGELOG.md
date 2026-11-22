@@ -1,5 +1,15 @@
 # @kbzowski/mcp-inbox
 
+## 0.6.1
+
+### Patch Changes
+
+- 6a7fa8b: Fixed folder sync failing with "Too long argument" on large folders: envelopes are now fetched in batches of 500 UIDs.
+- c320253: Dependency updates. nodemailer 10.6.1 fixes recipient-domain handling that could differ from what was validated (10.4.1 security release), and the MCP SDK's HTTP transport now resolves to patched hono / @hono/node-server. drizzle-orm moves from 1.0.0-beta.22 to 1.0.0-rc.6; existing cache databases are migrated as before, with no rebuild.
+- 23e1a8a: Error logs now say what went wrong. Background failures (IDLE, index sweeper, shutdown) used to log no reason at all; every log entry now carries the full error with its cause chain, stack and server response. Failed tool calls also log the folder, UID and duration, and partial failures after a send (Sent copy, draft delete, `\Answered` flag) are logged instead of only being returned to the client. Email addresses in logged errors are masked, and embeddings error response bodies are no longer kept, so only the HTTP status is logged.
+  
+  Fixed: `imap_delete_email`, `imap_delete_multiple` with `hard_delete`, `imap_update_draft` and `imap_send_draft` reported success when the server refused the delete, and dropped the message from the cache while it stayed on the server.
+
 ## 0.6.0
 
 ### Minor Changes
