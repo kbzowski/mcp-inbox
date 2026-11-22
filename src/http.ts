@@ -61,6 +61,13 @@ export function startHttpServer(cfg: HttpConfig, makeServer: () => Server): Prom
         try {
           await server.connect(transport);
           await transport.handleRequest(req, res, body);
+          if (res.statusCode >= 400) {
+            log.warn('request rejected', {
+              status: res.statusCode,
+              userAgent: req.headers['user-agent'],
+              protocolVersion: req.headers['mcp-protocol-version'],
+            });
+          }
         } catch (err) {
           log.error('http request failed', {
             err,
