@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: [main, master]
 
-# Opt into Node 24 runtime for bundled actions (actions/checkout, setup-node,
-# etc.) ahead of the June 2026 deadline when GitHub drops Node 20 runners.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -18,10 +13,10 @@ jobs:
       matrix:
         node-version: ['24.x']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -40,8 +35,8 @@ jobs:
     # don't need a `services:` block - Docker is pre-installed on
     # ubuntu-latest runners and testcontainers talks to it directly.
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.x'
           cache: 'npm'
