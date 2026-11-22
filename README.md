@@ -97,6 +97,8 @@ Claude Code: `claude mcp add --transport http inbox http://localhost:3000/mcp --
 
 The image is Debian-based on purpose: `sqlite-vec` (semantic search) has no Alpine build. If your embeddings server runs on the host, use `host.docker.internal` instead of `localhost` in `IMAP_EMBEDDINGS_BASE_URL`.
 
+To run embeddings locally alongside the server, add the Ollama overlay: `docker compose -f compose.yaml -f compose.embeddings.yaml up -d`. It pulls `snowflake-arctic-embed2` (~1.2 GB) on first start and keeps Ollama off the host network, so mail text never leaves the machine. Its settings override any `IMAP_EMBEDDINGS_*` in `.env`, and the model change rebuilds the index.
+
 ### Credentials
 
 Gmail, Outlook, Fastmail and iCloud all need an **app password**, not the account password.
