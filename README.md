@@ -79,21 +79,21 @@ The `mcp-inbox-cache` volume keeps the SQLite cache between runs; without it eve
 
 ### Shared server (streamable HTTP)
 
-To connect several clients to one server, run it over HTTP instead of stdio. Set `MCP_HTTP_PORT` and `MCP_AUTH_TOKEN` (16+ characters; required, because this exposes your mailbox). Put both in `.env` and run `docker compose up -d`; `compose.yaml` publishes `127.0.0.1:3000`. Without Docker: `MCP_HTTP_PORT=3000 MCP_AUTH_TOKEN=... npx -y @kbzowski/mcp-inbox`.
+To connect several clients to one server, run it over HTTP instead of stdio. Set `MCP_HTTP_PORT` and `MCP_AUTH_TOKEN` (16+ characters; required, because this exposes your mailbox). Put both in `.env` and run `docker compose up -d`; `compose.yaml` publishes `127.0.0.1:3333`. Without Docker: `MCP_HTTP_PORT=3333 MCP_AUTH_TOKEN=... npx -y @kbzowski/mcp-inbox`.
 
 ```json
 {
   "mcpServers": {
     "inbox": {
       "type": "http",
-      "url": "http://localhost:3000/mcp",
+      "url": "http://localhost:3333/mcp",
       "headers": { "Authorization": "Bearer your-token" }
     }
   }
 }
 ```
 
-Claude Code: `claude mcp add --transport http inbox http://localhost:3000/mcp --header "Authorization: Bearer your-token"`. The server is stateless and shares one IMAP connection and cache across clients. There is no TLS; keep it on localhost or put a reverse proxy in front.
+Claude Code: `claude mcp add --transport http inbox http://localhost:3333/mcp --header "Authorization: Bearer your-token"`. The server is stateless and shares one IMAP connection and cache across clients. There is no TLS; keep it on localhost or put a reverse proxy in front.
 
 The image is Debian-based on purpose: `sqlite-vec` (semantic search) has no Alpine build. If your embeddings server runs on the host, use `host.docker.internal` instead of `localhost` in `IMAP_EMBEDDINGS_BASE_URL`.
 
