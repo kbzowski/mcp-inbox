@@ -13,7 +13,7 @@ MCP server exposing IMAP/SMTP email over a fast local SQLite cache. Published to
 - **oxlint + oxfmt** replace ESLint and Prettier. Type-aware rules run through `oxlint-tsgolint`, so `npm run lint` needs `--type-aware` to catch anything about types. Config lives in `.oxlintrc.json` / `.oxfmtrc.json`. oxfmt handles JS/TS/JSON only - the three HTML/CSS files under `thunderbird-plugin/src/` are no longer auto-formatted.
 - **ESM only** (`"type": "module"`). Use `.js` import extensions in source (TS resolves them at compile time).
 - **Zod v4** is the single source of truth for all external inputs - env vars and tool arguments. JSON Schemas for MCP `inputSchema` are derived from Zod via `zod-to-json-schema`; never duplicate a schema.
-- **Drizzle ORM** (`drizzle-orm/node-sqlite`) is the cache layer; pinned to an exact `1.0.0-beta.X` version because the 1.0 line is still pre-release. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
+- **Drizzle ORM** (`drizzle-orm/node-sqlite`) is the cache layer; pinned to an exact `1.0.0-rc.X` version because the 1.0 line is still pre-release. Since rc.6 node-sqlite returns integer `sql` fields as `bigint`: use `count()` or `.mapWith(Number)`, `sql<number>` alone lies to the type checker. Schema lives in `src/cache/schema.ts`; migrations are generated via `npm run db:generate`.
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, gte, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { CacheDb } from './db';
 import { createLogger } from '../utils/logger';
 import { deleteVectorsByFolder, deleteVectorsByUids } from './vectors';
@@ -179,7 +179,7 @@ export function countEmailsInFolder(
 ): number {
   const conditions = buildFolderConditions(folder, opts);
   const row = db
-    .select({ n: sql<number>`count(*)` })
+    .select({ n: count() })
     .from(emails)
     .where(and(...conditions))
     .get();
@@ -231,7 +231,7 @@ export function countEmailsOutsideUidRange(
     fromUid === 0 && toUid === 0 ? undefined : or(lt(emails.uid, fromUid), gt(emails.uid, toUid));
 
   const row = db
-    .select({ n: sql<number>`count(*)` })
+    .select({ n: count() })
     .from(emails)
     .where(
       outside === undefined ? eq(emails.folder, folder) : and(eq(emails.folder, folder), outside),
@@ -384,18 +384,18 @@ export function deleteEmailsByUids(db: CacheDb, folder: string, uids: number[]):
  */
 export function pruneBodiesBefore(db: CacheDb, cutoffMs: number): number {
   const stale = db
-    .select({ n: sql<number>`count(*)` })
+    .select({ n: count() })
     .from(emails)
     .where(lt(emails.bodyCachedAt, cutoffMs))
     .get();
-  const count = stale?.n ?? 0;
-  if (count === 0) return 0;
+  const cleared = stale?.n ?? 0;
+  if (cleared === 0) return 0;
 
   db.update(emails)
     .set({ bodyText: null, bodyHtml: null, attachmentsJson: null, bodyCachedAt: null })
     .where(lt(emails.bodyCachedAt, cutoffMs))
     .run();
-  return count;
+  return cleared;
 }
 
 export interface CachedBody {

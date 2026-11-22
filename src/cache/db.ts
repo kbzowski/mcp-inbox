@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-sqlite';
 import { migrate } from 'drizzle-orm/node-sqlite/migrator';
 import * as sqliteVec from 'sqlite-vec';
-import * as schema from './schema';
 import { CacheError } from '../errors/types';
 import { createLogger } from '../utils/logger';
 
@@ -20,7 +19,7 @@ export const DEFAULT_MIGRATIONS_FOLDER = fileURLToPath(new URL('./migrations', i
 
 const log = createLogger('mcp-inbox:cache');
 
-export type CacheDb = ReturnType<typeof drizzle<typeof schema>>;
+export type CacheDb = ReturnType<typeof drizzle>;
 
 export interface CacheHandle {
   db: CacheDb;
@@ -75,7 +74,7 @@ export function openCache(path: string, migrationsFolder?: string): CacheHandle 
 
   const vectorsAvailable = loadVectorExtension(sqlite);
 
-  const db = drizzle({ client: sqlite, schema });
+  const db = drizzle({ client: sqlite });
 
   if (migrationsFolder) {
     try {
