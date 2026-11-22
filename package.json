@@ -66,7 +66,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "drizzle-orm": "1.0.0-beta.22",
-    "imapflow": "^2.10.0",
+    "imapflow": "^2.12.2",
     "mailparser": "^3.15.0",
     "nodemailer": "^10.6.1",
     "sqlite-vec": "0.1.9",
@@ -80,11 +80,11 @@
     "esbuild": "^0.28.2",
     "lefthook": "^2.2.2",
     "oxfmt": "^0.75.0",
-    "oxlint": "^1.90.0",
-    "oxlint-tsgolint": "^7.0.2005",
+    "oxlint": "^1.94.0",
+    "oxlint-tsgolint": "^7.0.2008",
     "testcontainers": "^12.2.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.1"
   }
 }

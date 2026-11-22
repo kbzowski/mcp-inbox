@@ -44,9 +44,6 @@ export class McpInboxError extends Error {
     this.name = new.target.name;
     this.code = code;
     this.userMessage = userMessage;
-    // Strips the base constructor frames from the stack trace.
-    // Always available on V8 (Node 24).
-    Error.captureStackTrace(this, new.target);
   }
 }
 
